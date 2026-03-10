@@ -3,6 +3,7 @@ import { Plus, Trash2, Target, Edit2, Check, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import ConfirmModal from './ConfirmModal';
+import CurrencyInput, { centsToFloat, floatToCents } from './CurrencyInput';
 
 const COLORS = [
   '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -33,8 +34,8 @@ export default function Goals() {
     const category = form.category || form.name;
     addGoal({
       name: form.name,
-      target: parseFloat(form.target),
-      current: parseFloat(form.current) || 0,
+      target: centsToFloat(form.target),
+      current: centsToFloat(form.current),
       category,
       color: form.color,
       deadline: form.deadline,
@@ -51,7 +52,7 @@ export default function Goals() {
   };
 
   const handleEditSave = (id) => {
-    const amount = parseFloat(editAmount);
+    const amount = centsToFloat(editAmount);
     if (!isNaN(amount) && amount >= 0) {
       const goal = data.goals.find(g => g.id === id);
       updateGoal(id, { current: Math.min(goal.target, amount) });
@@ -107,14 +108,11 @@ export default function Goals() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Valor Alvo (R$)
                 </label>
-                <input
-                  type="number"
+                <CurrencyInput
                   required
-                  min="1"
-                  step="0.01"
-                  placeholder="10.000,00"
+                  placeholder="0,00"
                   value={form.target}
-                  onChange={set('target')}
+                  onChange={(v) => setForm(prev => ({ ...prev, target: v }))}
                   className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
                              placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
@@ -124,13 +122,10 @@ export default function Goals() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Já economizei (R$)
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                <CurrencyInput
                   placeholder="0,00"
                   value={form.current}
-                  onChange={set('current')}
+                  onChange={(v) => setForm(prev => ({ ...prev, current: v }))}
                   className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
                              placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
@@ -288,13 +283,11 @@ export default function Goals() {
                 {/* Manual update */}
                 {editId === goal.id ? (
                   <div className="flex gap-2">
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="Novo valor atual"
+                    <CurrencyInput
+                      placeholder="0,00"
                       value={editAmount}
-                      onChange={e => setEditAmount(e.target.value)}
+                      onChange={setEditAmount}
+                      autoFocus
                       className="flex-1 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600
                                  bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white
                                  focus:outline-none focus:ring-2 focus:ring-violet-400"
@@ -316,7 +309,7 @@ export default function Goals() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => { setEditId(goal.id); setEditAmount(String(goal.current)); }}
+                    onClick={() => { setEditId(goal.id); setEditAmount(floatToCents(goal.current)); }}
                     className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500
                                hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
                   >

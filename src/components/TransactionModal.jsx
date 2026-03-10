@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatDateInput } from '../utils/formatters';
+import CurrencyInput, { centsToFloat } from './CurrencyInput';
 
 const TYPE_CONFIG = {
   income: { label: 'Receita', color: 'bg-emerald-500', ring: 'ring-emerald-400' },
@@ -46,7 +47,7 @@ export default function TransactionModal({ isOpen, onClose }) {
     if (!form.description || !form.amount || !form.date || !form.accountId) return;
     addTransaction({
       ...form,
-      amount: parseFloat(form.amount),
+      amount: centsToFloat(form.amount),
       category: form.category || categories[0] || 'Outros',
     });
     onClose();
@@ -110,13 +111,10 @@ export default function TransactionModal({ isOpen, onClose }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Valor (R$)</label>
-              <input
-                type="number"
+              <CurrencyInput
                 required
-                min="0.01"
-                step="0.01"
                 value={form.amount}
-                onChange={set('amount')}
+                onChange={(v) => setForm(prev => ({ ...prev, amount: v }))}
                 placeholder="0,00"
                 className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white

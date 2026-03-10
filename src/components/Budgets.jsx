@@ -3,6 +3,7 @@ import { Plus, Trash2, PiggyBank } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatters';
 import ConfirmModal from './ConfirmModal';
+import CurrencyInput, { centsToFloat } from './CurrencyInput';
 
 function ProgressBar({ spent, limit }) {
   const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
@@ -58,7 +59,7 @@ export default function Budgets() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.category || !form.limit) return;
-    addBudget({ category: form.category, limit: parseFloat(form.limit) });
+    addBudget({ category: form.category, limit: centsToFloat(form.limit) });
     setForm({ category: '', limit: '' });
     setShowForm(false);
   };
@@ -108,14 +109,11 @@ export default function Budgets() {
               <option value="">Selecionar categoria</option>
               {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
-            <input
-              type="number"
+            <CurrencyInput
               required
-              min="1"
-              step="0.01"
               placeholder="Limite mensal (R$)"
               value={form.limit}
-              onChange={e => setForm(p => ({ ...p, limit: e.target.value }))}
+              onChange={(v) => setForm(p => ({ ...p, limit: v }))}
               className="flex-1 min-w-40 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
                          bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
                          placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"

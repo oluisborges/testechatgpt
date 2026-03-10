@@ -3,12 +3,7 @@ import { getCurrentMonth, getTransactionMonth } from '../utils/formatters';
 
 const AppContext = createContext(null);
 
-const STORAGE_KEY = 'nosso_controle_data';
-
-const DEFAULT_ACCOUNTS = [
-  { id: '1', name: 'Banco Principal', balance: 5000, color: '#6366f1' },
-  { id: '2', name: 'Carteira', balance: 500, color: '#10b981' },
-];
+const STORAGE_KEY = 'nosso_controle_v2';
 
 const DEFAULT_CATEGORIES = {
   income: ['Salário', 'Freelance', 'Dividendos', 'Outros'],
@@ -20,49 +15,15 @@ const PAYMENT_METHODS = ['Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Di
 
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-const today = new Date();
-const fmt = (d) => d.toISOString().split('T')[0];
-const daysAgo = (n) => { const d = new Date(today); d.setDate(d.getDate() - n); return fmt(d); };
-
-const SAMPLE_TRANSACTIONS = [
-  { id: 's1', type: 'income',     description: 'Salário',           amount: 5500,  date: daysAgo(20), category: 'Salário',            accountId: '1', paymentMethod: 'Transferência' },
-  { id: 's2', type: 'expense',    description: 'Supermercado',      amount: 420,   date: daysAgo(15), category: 'Alimentação',         accountId: '1', paymentMethod: 'Cartão de Débito' },
-  { id: 's3', type: 'expense',    description: 'Aluguel',           amount: 1200,  date: daysAgo(14), category: 'Moradia',             accountId: '1', paymentMethod: 'Transferência' },
-  { id: 's4', type: 'investment', description: 'Tesouro Direto',    amount: 500,   date: daysAgo(10), category: 'Renda Fixa',          accountId: '1', paymentMethod: 'Pix' },
-  { id: 's5', type: 'expense',    description: 'Restaurante',       amount: 85,    date: daysAgo(8),  category: 'Alimentação',         accountId: '1', paymentMethod: 'Cartão de Crédito' },
-  { id: 's6', type: 'expense',    description: 'Uber',              amount: 45,    date: daysAgo(6),  category: 'Transporte',          accountId: '1', paymentMethod: 'Pix' },
-  { id: 's7', type: 'investment', description: 'Reserva de emergência', amount: 300, date: daysAgo(5), category: 'Reserva de Emergência', accountId: '1', paymentMethod: 'Transferência' },
-  { id: 's8', type: 'income',     description: 'Freelance design',  amount: 800,   date: daysAgo(3),  category: 'Freelance',           accountId: '1', paymentMethod: 'Pix' },
-  { id: 's9', type: 'expense',    description: 'Academia',          amount: 120,   date: daysAgo(2),  category: 'Saúde',               accountId: '1', paymentMethod: 'Cartão de Débito' },
-  { id: 's10', type: 'expense',   description: 'Streaming',         amount: 55,    date: daysAgo(1),  category: 'Lazer',               accountId: '1', paymentMethod: 'Cartão de Crédito' },
-];
-
-const SAMPLE_BUDGETS = [
-  { id: 'b1', category: 'Alimentação', limit: 800 },
-  { id: 'b2', category: 'Moradia',     limit: 1500 },
-  { id: 'b3', category: 'Transporte',  limit: 300 },
-  { id: 'b4', category: 'Lazer',       limit: 200 },
-  { id: 'b5', category: 'Saúde',       limit: 250 },
-];
-
-const SAMPLE_GOALS = [
-  { id: 'g1', name: 'Reserva de Emergência', target: 18000, current: 2300,  category: 'Reserva de Emergência', color: '#10b981', deadline: '' },
-  { id: 'g2', name: 'Viagem Europa',         target: 12000, current: 1500,  category: 'Viagem Europa',         color: '#6366f1', deadline: fmt(new Date(today.getFullYear() + 1, 5, 1)) },
-  { id: 'g3', name: 'Novo Notebook',         target: 4000,  current: 3200,  category: 'Novo Notebook',         color: '#f59e0b', deadline: fmt(new Date(today.getFullYear(), today.getMonth() + 2, 1)) },
-];
-
 const getDefaultData = () => ({
   accounts: [
-    { id: '1', name: 'Banco Principal', balance: 2375, color: '#6366f1' },
-    { id: '2', name: 'Carteira',        balance: 500,  color: '#10b981' },
+    { id: '1', name: 'Banco Principal', balance: 0, color: '#6366f1' },
+    { id: '2', name: 'Carteira',        balance: 0, color: '#10b981' },
   ],
-  transactions: SAMPLE_TRANSACTIONS,
-  budgets: SAMPLE_BUDGETS,
-  goals: SAMPLE_GOALS,
-  categories: {
-    ...DEFAULT_CATEGORIES,
-    investment: [...DEFAULT_CATEGORIES.investment, 'Viagem Europa', 'Novo Notebook'],
-  },
+  transactions: [],
+  budgets: [],
+  goals: [],
+  categories: DEFAULT_CATEGORIES,
 });
 
 const loadFromStorage = () => {
