@@ -1,5 +1,6 @@
 import { LayoutDashboard, ArrowLeftRight, Target, PiggyBank, X, TrendingUp, Wallet } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../utils/formatters';
 
 const NAV_ITEMS = [
@@ -11,6 +12,7 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const { activePage, setActivePage, sidebarOpen, setSidebarOpen, totalBalance, totalInvested } = useApp();
+  const { user } = useAuth();
 
   const navigate = (page) => {
     setActivePage(page);
@@ -110,7 +112,12 @@ export default function Sidebar() {
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-100 dark:border-gray-800">
-          <p className="text-xs text-center text-gray-400 dark:text-gray-600">
+          {user?.email && (
+            <p className="text-xs text-center text-gray-400 dark:text-gray-500 truncate mb-1" title={user.email}>
+              {user.email}
+            </p>
+          )}
+          <p className="text-xs text-center text-gray-300 dark:text-gray-700">
             Nosso Controle © 2025
           </p>
         </div>

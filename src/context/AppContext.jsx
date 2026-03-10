@@ -1,9 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getCurrentMonth, getTransactionMonth } from '../utils/formatters';
+import { supabase } from '../lib/supabase';
 
 const AppContext = createContext(null);
-
-const STORAGE_KEY = 'nosso_controle_v2';
 
 const DEFAULT_CATEGORIES = {
   income: ['Salário', 'Freelance', 'Dividendos', 'Outros'],
@@ -13,41 +12,17 @@ const DEFAULT_CATEGORIES = {
 
 const PAYMENT_METHODS = ['Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Dinheiro', 'Transferência', 'Boleto'];
 
-const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+// ── Mappers Supabase → App ────────────────────────────────────────────────────
+const mapAccount     = (r) => ({ id: r.id, name: r.name, balance: parseFloat(r.balance), color: r.color });
+const mapTransaction = (r) => ({ id: r.id, type: r.type, description: r.description, amount: parseFloat(r.amount), date: r.date, category: r.category, accountId: r.account_id, paymentMethod: r.payment_method });
+const mapBudget      = (r) => ({ id: r.id, category: r.category, limit: parseFloat(r.limit) });
+const mapGoal        = (r) => ({ id: r.id, name: r.name, target: parseFloat(r.target), current: parseFloat(r.current), category: r.category, color: r.color, deadline: r.deadline || '' });
 
-const getDefaultData = () => ({
-  accounts: [
-    { id: '1', name: 'Banco Principal', balance: 0, color: '#6366f1' },
-    { id: '2', name: 'Carteira',        balance: 0, color: '#10b981' },
-  ],
-  transactions: [],
-  budgets: [],
-  goals: [],
-  categories: DEFAULT_CATEGORIES,
-});
-
-const loadFromStorage = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return {
-        ...getDefaultData(),
-        ...parsed,
-        categories: {
-          ...DEFAULT_CATEGORIES,
-          ...(parsed.categories || {}),
-        },
-      };
-    }
-  } catch (e) {
-    console.error('Failed to load data:', e);
-  }
-  return getDefaultData();
-};
-
-export function AppProvider({ children }) {
-  const [data, setData] = useState(() => loadFromStorage());
+export function AppProvider({ user, children }) {
+  const [data, setData] = useState({
+    accounts: [], transactions: [], budgets: [], goals: [], categories: DEFAULT_CATEGORIES,
+  });
+  const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState(() => {
     const stored = localStorage.getItem('nosso_controle_theme');
     if (stored) return stored;
@@ -56,12 +31,48 @@ export function AppProvider({ children }) {
   const [activePage, setActivePage] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Persist data on change
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [data]);
+  // ── Load data from Supabase ───────────────────────────────────────────────
+  const loadUserData = useCallback(async () => {
+    setLoading(true);
+    const uid = user.id;
 
-  // Apply theme
+    const [
+      { data: accounts },
+      { data: transactions },
+      { data: budgets },
+      { data: goals },
+      { data: settings },
+    ] = await Promise.all([
+      supabase.from('accounts').select('*').eq('user_id', uid).order('created_at'),
+      supabase.from('transactions').select('*').eq('user_id', uid).order('date', { ascending: false }).order('created_at', { ascending: false }),
+      supabase.from('budgets').select('*').eq('user_id', uid),
+      supabase.from('goals').select('*').eq('user_id', uid),
+      supabase.from('user_settings').select('*').eq('user_id', uid).maybeSingle(),
+    ]);
+
+    // First-time user: create default accounts + settings
+    if (!accounts?.length) {
+      const { data: newAccounts } = await supabase.from('accounts').insert([
+        { user_id: uid, name: 'Banco Principal', balance: 0, color: '#6366f1' },
+        { user_id: uid, name: 'Carteira',        balance: 0, color: '#10b981' },
+      ]).select();
+      await supabase.from('user_settings').upsert({ user_id: uid, categories: DEFAULT_CATEGORIES });
+      setData({ accounts: (newAccounts || []).map(mapAccount), transactions: [], budgets: [], goals: [], categories: DEFAULT_CATEGORIES });
+    } else {
+      setData({
+        accounts:     (accounts     || []).map(mapAccount),
+        transactions: (transactions || []).map(mapTransaction),
+        budgets:      (budgets      || []).map(mapBudget),
+        goals:        (goals        || []).map(mapGoal),
+        categories:   settings?.categories || DEFAULT_CATEGORIES,
+      });
+    }
+
+    setLoading(false);
+  }, [user.id]);
+
+  useEffect(() => { loadUserData(); }, [loadUserData]);
+
   useEffect(() => {
     localStorage.setItem('nosso_controle_theme', theme);
     document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -69,237 +80,189 @@ export function AppProvider({ children }) {
 
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
-  // ── Computed values ──────────────────────────────────────────────────────────
-  const totalBalance = data.accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
+  // ── Computed ──────────────────────────────────────────────────────────────
+  const totalBalance   = data.accounts.reduce((s, a) => s + (a.balance || 0), 0);
+  const totalInvested  = data.goals.reduce((s, g) => s + (g.current || 0), 0);
+  const currentMonth   = getCurrentMonth();
 
-  const totalInvested = data.goals.reduce((sum, g) => sum + (g.current || 0), 0);
+  const currentMonthTransactions = data.transactions.filter(t => getTransactionMonth(t.date) === currentMonth);
+  const monthlyIncome      = currentMonthTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const monthlyExpenses    = currentMonthTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const monthlyInvestments = currentMonthTransactions.filter(t => t.type === 'investment').reduce((s, t) => s + t.amount, 0);
 
-  const currentMonth = getCurrentMonth();
+  // ── Transactions ──────────────────────────────────────────────────────────
+  const addTransaction = useCallback(async (tx) => {
+    const { data: newTx, error } = await supabase.from('transactions').insert({
+      user_id: user.id, type: tx.type, description: tx.description, amount: tx.amount,
+      date: tx.date, category: tx.category, account_id: tx.accountId, payment_method: tx.paymentMethod,
+    }).select().single();
+    if (error) { console.error(error); return; }
 
-  const currentMonthTransactions = data.transactions.filter(
-    t => getTransactionMonth(t.date) === currentMonth
-  );
+    let delta = tx.type === 'income' ? tx.amount : -tx.amount;
 
-  const monthlyIncome = currentMonthTransactions
-    .filter(t => t.type === 'income')
-    .reduce((s, t) => s + t.amount, 0);
-
-  const monthlyExpenses = currentMonthTransactions
-    .filter(t => t.type === 'expense')
-    .reduce((s, t) => s + t.amount, 0);
-
-  const monthlyInvestments = currentMonthTransactions
-    .filter(t => t.type === 'investment')
-    .reduce((s, t) => s + t.amount, 0);
-
-  // ── Transactions ─────────────────────────────────────────────────────────────
-  const addTransaction = useCallback((tx) => {
-    const newTx = { ...tx, id: generateId() };
     setData(prev => {
-      const accounts = prev.accounts.map(acc => {
-        if (acc.id !== tx.accountId) return acc;
-        let delta = 0;
-        if (tx.type === 'income') delta = tx.amount;
-        if (tx.type === 'expense') delta = -tx.amount;
-        if (tx.type === 'investment') delta = -tx.amount;
-        return { ...acc, balance: acc.balance + delta };
-      });
+      const account = prev.accounts.find(a => a.id === tx.accountId);
+      const accounts = prev.accounts.map(a =>
+        a.id === tx.accountId ? { ...a, balance: a.balance + delta } : a
+      );
+      if (account) supabase.from('accounts').update({ balance: account.balance + delta }).eq('id', tx.accountId);
 
-      // Update goal progress if it's an investment
       let goals = prev.goals;
       if (tx.type === 'investment') {
         goals = prev.goals.map(g => {
-          if (g.category === tx.category) {
-            return { ...g, current: Math.min(g.target, (g.current || 0) + tx.amount) };
-          }
-          return g;
+          if (g.category !== tx.category) return g;
+          const newCurrent = Math.min(g.target, g.current + tx.amount);
+          supabase.from('goals').update({ current: newCurrent }).eq('id', g.id);
+          return { ...g, current: newCurrent };
         });
       }
 
-      return { ...prev, transactions: [newTx, ...prev.transactions], accounts, goals };
+      return { ...prev, transactions: [mapTransaction(newTx), ...prev.transactions], accounts, goals };
     });
-  }, []);
+  }, [user.id]);
 
-  const deleteTransaction = useCallback((id) => {
+  const deleteTransaction = useCallback(async (id) => {
     setData(prev => {
       const tx = prev.transactions.find(t => t.id === id);
       if (!tx) return prev;
 
-      const accounts = prev.accounts.map(acc => {
-        if (acc.id !== tx.accountId) return acc;
-        let delta = 0;
-        if (tx.type === 'income') delta = -tx.amount;
-        if (tx.type === 'expense') delta = tx.amount;
-        if (tx.type === 'investment') delta = tx.amount;
-        return { ...acc, balance: acc.balance + delta };
-      });
+      supabase.from('transactions').delete().eq('id', id);
 
-      // Reverse goal progress
+      let delta = tx.type === 'income' ? -tx.amount : tx.amount;
+      const account = prev.accounts.find(a => a.id === tx.accountId);
+      const accounts = prev.accounts.map(a =>
+        a.id === tx.accountId ? { ...a, balance: a.balance + delta } : a
+      );
+      if (account) supabase.from('accounts').update({ balance: account.balance + delta }).eq('id', tx.accountId);
+
       let goals = prev.goals;
       if (tx.type === 'investment') {
         goals = prev.goals.map(g => {
-          if (g.category === tx.category) {
-            return { ...g, current: Math.max(0, (g.current || 0) - tx.amount) };
-          }
-          return g;
+          if (g.category !== tx.category) return g;
+          const newCurrent = Math.max(0, g.current - tx.amount);
+          supabase.from('goals').update({ current: newCurrent }).eq('id', g.id);
+          return { ...g, current: newCurrent };
         });
       }
 
-      return {
-        ...prev,
-        transactions: prev.transactions.filter(t => t.id !== id),
-        accounts,
-        goals,
-      };
+      return { ...prev, transactions: prev.transactions.filter(t => t.id !== id), accounts, goals };
     });
   }, []);
 
-  // ── Accounts ──────────────────────────────────────────────────────────────────
-  const addAccount = useCallback((account) => {
-    setData(prev => ({
-      ...prev,
-      accounts: [...prev.accounts, { ...account, id: generateId() }],
-    }));
-  }, []);
+  // ── Accounts ──────────────────────────────────────────────────────────────
+  const addAccount = useCallback(async (account) => {
+    const { data: newAcc, error } = await supabase.from('accounts').insert({
+      user_id: user.id, name: account.name, balance: account.balance || 0, color: account.color,
+    }).select().single();
+    if (error) { console.error(error); return; }
+    setData(prev => ({ ...prev, accounts: [...prev.accounts, mapAccount(newAcc)] }));
+  }, [user.id]);
 
-  const deleteAccount = useCallback((id) => {
+  const deleteAccount = useCallback(async (id) => {
+    await supabase.from('accounts').delete().eq('id', id);
     setData(prev => ({
       ...prev,
       accounts: prev.accounts.filter(a => a.id !== id),
-      transactions: prev.transactions.map(t =>
-        t.accountId === id ? { ...t, accountId: null } : t
-      ),
+      transactions: prev.transactions.map(t => t.accountId === id ? { ...t, accountId: null } : t),
     }));
   }, []);
 
-  // ── Budgets ───────────────────────────────────────────────────────────────────
-  const addBudget = useCallback((budget) => {
-    setData(prev => {
-      const existing = prev.budgets.find(b => b.category === budget.category);
-      if (existing) {
-        return {
-          ...prev,
-          budgets: prev.budgets.map(b =>
-            b.category === budget.category ? { ...b, limit: budget.limit } : b
-          ),
-        };
-      }
-      return { ...prev, budgets: [...prev.budgets, { ...budget, id: generateId() }] };
-    });
-  }, []);
+  // ── Budgets ───────────────────────────────────────────────────────────────
+  const addBudget = useCallback(async (budget) => {
+    const { data: newBudget, error } = await supabase.from('budgets').upsert(
+      { user_id: user.id, category: budget.category, limit: budget.limit },
+      { onConflict: 'user_id,category' }
+    ).select().single();
+    if (error) { console.error(error); return; }
 
-  const deleteBudget = useCallback((id) => {
+    setData(prev => {
+      const exists = prev.budgets.find(b => b.category === budget.category);
+      return {
+        ...prev,
+        budgets: exists
+          ? prev.budgets.map(b => b.category === budget.category ? mapBudget(newBudget) : b)
+          : [...prev.budgets, mapBudget(newBudget)],
+      };
+    });
+  }, [user.id]);
+
+  const deleteBudget = useCallback(async (id) => {
     setData(prev => {
       const budget = prev.budgets.find(b => b.id === id);
+      supabase.from('budgets').delete().eq('id', id);
       return {
         ...prev,
         budgets: prev.budgets.filter(b => b.id !== id),
-        // Disassociate transactions from the deleted budget category
         transactions: budget
-          ? prev.transactions.map(t =>
-              t.category === budget.category && t.type === 'expense'
-                ? { ...t, category: 'Outros' }
-                : t
-            )
+          ? prev.transactions.map(t => t.category === budget.category && t.type === 'expense' ? { ...t, category: 'Outros' } : t)
           : prev.transactions,
       };
     });
   }, []);
 
-  const getBudgetSpent = useCallback((category) => {
-    return data.transactions
-      .filter(t => t.type === 'expense' && t.category === category &&
-        getTransactionMonth(t.date) === currentMonth)
-      .reduce((s, t) => s + t.amount, 0);
-  }, [data.transactions, currentMonth]);
+  const getBudgetSpent = useCallback((category) =>
+    data.transactions
+      .filter(t => t.type === 'expense' && t.category === category && getTransactionMonth(t.date) === currentMonth)
+      .reduce((s, t) => s + t.amount, 0),
+  [data.transactions, currentMonth]);
 
-  // ── Goals ─────────────────────────────────────────────────────────────────────
-  const addGoal = useCallback((goal) => {
+  // ── Goals ─────────────────────────────────────────────────────────────────
+  const addGoal = useCallback(async (goal) => {
+    const { data: newGoal, error } = await supabase.from('goals').insert({
+      user_id: user.id, name: goal.name, target: goal.target, current: goal.current || 0,
+      category: goal.category, color: goal.color, deadline: goal.deadline || null,
+    }).select().single();
+    if (error) { console.error(error); return; }
+
     setData(prev => {
-      let categories = prev.categories;
-      // Auto-create investment category if needed
-      if (!prev.categories.investment.includes(goal.category)) {
-        categories = {
-          ...prev.categories,
-          investment: [...prev.categories.investment, goal.category],
-        };
+      const categories = { ...prev.categories };
+      if (!categories.investment.includes(goal.category)) {
+        categories.investment = [...categories.investment, goal.category];
+        supabase.from('user_settings').upsert({ user_id: user.id, categories });
       }
-      return {
-        ...prev,
-        goals: [...prev.goals, { ...goal, id: generateId(), current: goal.current || 0 }],
-        categories,
-      };
+      return { ...prev, goals: [...prev.goals, mapGoal(newGoal)], categories };
     });
+  }, [user.id]);
+
+  const updateGoal = useCallback(async (id, updates) => {
+    await supabase.from('goals').update(updates).eq('id', id);
+    setData(prev => ({ ...prev, goals: prev.goals.map(g => g.id === id ? { ...g, ...updates } : g) }));
   }, []);
 
-  const updateGoal = useCallback((id, updates) => {
-    setData(prev => ({
-      ...prev,
-      goals: prev.goals.map(g => g.id === id ? { ...g, ...updates } : g),
-    }));
-  }, []);
-
-  const deleteGoal = useCallback((id) => {
+  const deleteGoal = useCallback(async (id) => {
     setData(prev => {
       const goal = prev.goals.find(g => g.id === id);
+      supabase.from('goals').delete().eq('id', id);
       return {
         ...prev,
         goals: prev.goals.filter(g => g.id !== id),
-        // Disassociate transactions that referenced this goal's category
         transactions: goal
-          ? prev.transactions.map(t =>
-              t.category === goal.category && t.type === 'investment'
-                ? { ...t, category: 'Outros' }
-                : t
-            )
+          ? prev.transactions.map(t => t.category === goal.category && t.type === 'investment' ? { ...t, category: 'Outros' } : t)
           : prev.transactions,
       };
     });
   }, []);
 
-  // ── Categories ────────────────────────────────────────────────────────────────
-  const addCategory = useCallback((type, name) => {
+  // ── Categories ────────────────────────────────────────────────────────────
+  const addCategory = useCallback(async (type, name) => {
     setData(prev => {
       if (prev.categories[type]?.includes(name)) return prev;
-      return {
-        ...prev,
-        categories: {
-          ...prev.categories,
-          [type]: [...(prev.categories[type] || []), name],
-        },
-      };
+      const categories = { ...prev.categories, [type]: [...(prev.categories[type] || []), name] };
+      supabase.from('user_settings').upsert({ user_id: user.id, categories });
+      return { ...prev, categories };
     });
-  }, []);
+  }, [user.id]);
 
   const value = {
-    // State
-    data,
-    theme,
-    activePage,
-    sidebarOpen,
-    // Computed
-    totalBalance,
-    totalInvested,
-    currentMonth,
-    monthlyIncome,
-    monthlyExpenses,
-    monthlyInvestments,
-    // Constants
+    data, loading, theme, activePage, sidebarOpen,
+    totalBalance, totalInvested, currentMonth,
+    monthlyIncome, monthlyExpenses, monthlyInvestments,
     PAYMENT_METHODS,
-    // Actions
-    toggleTheme,
-    setActivePage,
-    setSidebarOpen,
-    addTransaction,
-    deleteTransaction,
-    addAccount,
-    deleteAccount,
-    addBudget,
-    deleteBudget,
-    getBudgetSpent,
-    addGoal,
-    updateGoal,
-    deleteGoal,
+    toggleTheme, setActivePage, setSidebarOpen,
+    addTransaction, deleteTransaction,
+    addAccount, deleteAccount,
+    addBudget, deleteBudget, getBudgetSpent,
+    addGoal, updateGoal, deleteGoal,
     addCategory,
   };
 
