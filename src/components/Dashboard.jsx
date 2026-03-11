@@ -6,13 +6,14 @@ import {
 import { TrendingUp, TrendingDown, Wallet, BarChart3, Plus, ArrowRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
-  formatCurrency, formatDate, getLast6Months, getMonthName, getTransactionMonth,
+  formatCurrency, formatDate, getLast6MonthsFrom, getMonthName, getTransactionMonth,
 } from '../utils/formatters';
 import TransactionModal from './TransactionModal';
+import MonthFilter from './MonthFilter';
 
 const EXPENSE_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
-function SummaryCard({ title, value, icon: Icon, color, trend }) {
+function SummaryCard({ title, value, icon: Icon, color }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700
                     hover:shadow-md transition-shadow">
@@ -23,11 +24,6 @@ function SummaryCard({ title, value, icon: Icon, color, trend }) {
         </div>
       </div>
       <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(value)}</p>
-      {trend !== undefined && (
-        <p className={`text-xs mt-1 ${trend >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-          {trend >= 0 ? '+' : ''}{formatCurrency(trend)} este mês
-        </p>
-      )}
     </div>
   );
 }
@@ -61,15 +57,15 @@ const PieTooltip = ({ active, payload }) => {
 
 export default function Dashboard() {
   const {
-    data, totalBalance, totalInvested, monthlyIncome, monthlyExpenses,
-    monthlyInvestments, currentMonth, setActivePage,
+    data, totalBalance, monthlyIncome, monthlyExpenses,
+    monthlyInvestments, selectedMonth, setActivePage,
   } = useApp();
 
   const [txModalOpen, setTxModalOpen] = useState(false);
   const [pieView, setPieView] = useState('expense');
 
-  // ── Area chart data ───────────────────────────────────────────────────────────
-  const last6 = getLast6Months();
+  // ── Area chart: 6 months ending at selectedMonth ──────────────────────────
+  const last6 = getLast6MonthsFrom(selectedMonth);
   const chartData = last6.map(month => {
     const txs = data.transactions.filter(t => getTransactionMonth(t.date) === month);
     return {
@@ -80,10 +76,10 @@ export default function Dashboard() {
     };
   });
 
-  // ── Pie chart data ────────────────────────────────────────────────────────────
+  // ── Pie chart: selectedMonth ───────────────────────────────────────────────
   const pieData = (() => {
     const txs = data.transactions.filter(t =>
-      t.type === pieView && getTransactionMonth(t.date) === currentMonth
+      t.type === pieView && getTransactionMonth(t.date) === selectedMonth
     );
     const groups = {};
     txs.forEach(t => {
@@ -92,7 +88,9 @@ export default function Dashboard() {
     return Object.entries(groups).map(([name, value]) => ({ name, value }));
   })();
 
-  const recentTx = data.transactions.slice(0, 5);
+  const recentTx = data.transactions
+    .filter(t => getTransactionMonth(t.date) === selectedMonth)
+    .slice(0, 5);
 
   const txTypeStyle = {
     income: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20',
@@ -104,20 +102,23 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Resumo financeiro do mês atual</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Resumo financeiro mensal</p>
         </div>
-        <button
-          onClick={() => setTxModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
-                     text-white rounded-2xl font-medium transition-colors shadow-lg
-                     shadow-violet-200 dark:shadow-violet-900/40 text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Lançar</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <MonthFilter />
+          <button
+            onClick={() => setTxModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
+                       text-white rounded-2xl font-medium transition-colors shadow-lg
+                       shadow-violet-200 dark:shadow-violet-900/40 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Lançar</span>
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -225,12 +226,12 @@ export default function Dashboard() {
 
         {recentTx.length === 0 ? (
           <div className="py-10 text-center">
-            <p className="text-gray-400 dark:text-gray-500 text-sm">Nenhum lançamento ainda.</p>
+            <p className="text-gray-400 dark:text-gray-500 text-sm">Nenhum lançamento neste mês.</p>
             <button
               onClick={() => setTxModalOpen(true)}
               className="mt-3 text-sm text-violet-600 dark:text-violet-400 font-medium hover:underline"
             >
-              Adicionar primeiro lançamento
+              Adicionar lançamento
             </button>
           </div>
         ) : (

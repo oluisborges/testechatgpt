@@ -23,6 +23,7 @@ export function AppProvider({ user, children }) {
     accounts: [], transactions: [], budgets: [], goals: [], categories: DEFAULT_CATEGORIES,
   });
   const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState(() => getCurrentMonth());
   const [theme, setTheme] = useState(() => {
     const stored = localStorage.getItem('nosso_controle_theme');
     if (stored) return stored;
@@ -80,14 +81,21 @@ export function AppProvider({ user, children }) {
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
   // ── Computed ──────────────────────────────────────────────────────────────
-  const totalBalance   = data.accounts.reduce((s, a) => s + (a.balance || 0), 0);
-  const totalInvested  = data.goals.reduce((s, g) => s + (g.current || 0), 0);
-  const currentMonth   = getCurrentMonth();
+  // totalBalance: all-time net (income − expense − investment) — independent of month filter
+  const totalBalance = data.transactions.reduce(
+    (s, t) => t.type === 'income' ? s + t.amount : s - t.amount, 0
+  );
+  // totalInvested: all-time sum of investment transactions
+  const totalInvested = data.transactions
+    .filter(t => t.type === 'investment')
+    .reduce((s, t) => s + t.amount, 0);
 
-  const currentMonthTransactions = data.transactions.filter(t => getTransactionMonth(t.date) === currentMonth);
-  const monthlyIncome      = currentMonthTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const monthlyExpenses    = currentMonthTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-  const monthlyInvestments = currentMonthTransactions.filter(t => t.type === 'investment').reduce((s, t) => s + t.amount, 0);
+  const currentMonth = getCurrentMonth();
+
+  const selectedMonthTxs = data.transactions.filter(t => getTransactionMonth(t.date) === selectedMonth);
+  const monthlyIncome      = selectedMonthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const monthlyExpenses    = selectedMonthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const monthlyInvestments = selectedMonthTxs.filter(t => t.type === 'investment').reduce((s, t) => s + t.amount, 0);
 
   // ── Transactions ──────────────────────────────────────────────────────────
   const addTransaction = useCallback(async (tx) => {
@@ -230,9 +238,9 @@ export function AppProvider({ user, children }) {
 
   const getBudgetSpent = useCallback((category) =>
     data.transactions
-      .filter(t => t.type === 'expense' && t.category === category && getTransactionMonth(t.date) === currentMonth)
+      .filter(t => t.type === 'expense' && t.category === category && getTransactionMonth(t.date) === selectedMonth)
       .reduce((s, t) => s + t.amount, 0),
-  [data.transactions, currentMonth]);
+  [data.transactions, selectedMonth]);
 
   // ── Goals ─────────────────────────────────────────────────────────────────
   const addGoal = useCallback(async (goal) => {
@@ -295,6 +303,7 @@ export function AppProvider({ user, children }) {
   const value = {
     data, loading, theme, activePage, sidebarOpen,
     totalBalance, totalInvested, currentMonth,
+    selectedMonth, setSelectedMonth,
     monthlyIncome, monthlyExpenses, monthlyInvestments,
     PAYMENT_METHODS,
     toggleTheme, setActivePage, setSidebarOpen,

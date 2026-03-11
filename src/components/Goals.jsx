@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Plus, Trash2, Target, Edit2, Check, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { formatCurrency, formatDate } from '../utils/formatters';
+import { formatCurrency, formatDate, getTransactionMonth } from '../utils/formatters';
 import ConfirmModal from './ConfirmModal';
 import CurrencyInput, { centsToFloat, floatToCents } from './CurrencyInput';
+import MonthFilter from './MonthFilter';
 
 const COLORS = [
   '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -11,7 +12,7 @@ const COLORS = [
 ];
 
 export default function Goals() {
-  const { data, addGoal, updateGoal, deleteGoal } = useApp();
+  const { data, addGoal, updateGoal, deleteGoal, selectedMonth } = useApp();
 
   const [showForm, setShowForm] = useState(false);
   const [confirmId, setConfirmId] = useState(null);
@@ -66,20 +67,23 @@ export default function Goals() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Metas de Economia</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">Acompanhe seus objetivos financeiros</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
-                     text-white rounded-2xl font-medium transition-colors shadow-lg
-                     shadow-violet-200 dark:shadow-violet-900/40 text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Nova Meta
-        </button>
+        <div className="flex items-center gap-3">
+          <MonthFilter />
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
+                       text-white rounded-2xl font-medium transition-colors shadow-lg
+                       shadow-violet-200 dark:shadow-violet-900/40 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Nova Meta
+          </button>
+        </div>
       </div>
 
       {/* Add form */}
@@ -224,6 +228,9 @@ export default function Goals() {
           {data.goals.map(goal => {
             const pct = goal.target > 0 ? Math.min(100, (goal.current / goal.target) * 100) : 0;
             const completed = pct >= 100;
+            const monthContrib = data.transactions
+              .filter(t => t.type === 'investment' && t.category === goal.category && getTransactionMonth(t.date) === selectedMonth)
+              .reduce((s, t) => s + t.amount, 0);
 
             return (
               <div
@@ -253,6 +260,12 @@ export default function Goals() {
                       Categoria: {goal.category}
                       {goal.deadline && ` · Prazo: ${formatDate(goal.deadline)}`}
                     </p>
+                    {monthContrib > 0 && (
+                      <span className="inline-block mt-1 text-xs font-medium px-2 py-0.5 rounded-lg
+                                       bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400">
+                        +{formatCurrency(monthContrib)} neste mês
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => setConfirmId(goal.id)}

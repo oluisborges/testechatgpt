@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatters';
 import ConfirmModal from './ConfirmModal';
 import CurrencyInput, { centsToFloat } from './CurrencyInput';
+import MonthFilter from './MonthFilter';
 
 function ProgressBar({ spent, limit }) {
   const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
@@ -74,22 +75,25 @@ export default function Budgets() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Orçamentos</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">Controle seus limites mensais de gastos</p>
         </div>
-        {availableCategories.length > 0 && (
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
-                       text-white rounded-2xl font-medium transition-colors shadow-lg
-                       shadow-violet-200 dark:shadow-violet-900/40 text-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Novo Orçamento
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          <MonthFilter />
+          {availableCategories.length > 0 && (
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
+                         text-white rounded-2xl font-medium transition-colors shadow-lg
+                         shadow-violet-200 dark:shadow-violet-900/40 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Novo
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Add form */}
