@@ -99,10 +99,21 @@ export function AppProvider({ user, children }) {
 
   // ── Transactions ──────────────────────────────────────────────────────────
   const addTransaction = useCallback(async (tx) => {
-    const { data: newTx, error } = await supabase.from('transactions').insert({
+    const insertPayload = {
       user_id: user.id, type: tx.type, description: tx.description, amount: tx.amount,
-      date: tx.date, category: tx.category, account_id: tx.accountId, payment_method: tx.paymentMethod,
-    }).select().single();
+      date: tx.date, category: tx.category, account_id: tx.accountId,
+      payment_method: tx.paymentMethod,
+      notes: tx.notes || null,
+      is_recurring: tx.isRecurring || false,
+      recurrence_interval: tx.recurrenceInterval || 'monthly',
+    };
+
+    let { data: newTx, error } = await supabase.from('transactions').insert(insertPayload).select().single();
+    if (error) {
+      // Fallback: try without new columns in case migration hasn't been run
+      const { notes, is_recurring, recurrence_interval, ...corePayload } = insertPayload;
+      ({ data: newTx, error } = await supabase.from('transactions').insert(corePayload).select().single());
+    }
     if (error) { console.error('addTransaction:', error); return; }
 
     const delta = tx.type === 'income' ? tx.amount : -tx.amount;
@@ -230,7 +241,12 @@ export function AppProvider({ user, children }) {
     // Remove undefined keys
     Object.keys(dbUpdates).forEach(k => dbUpdates[k] === undefined && delete dbUpdates[k]);
 
-    const { error } = await supabase.from('transactions').update(dbUpdates).eq('id', id);
+    let { error } = await supabase.from('transactions').update(dbUpdates).eq('id', id);
+    if (error) {
+      // Fallback: retry without new columns in case migration hasn't been run
+      const { notes, is_recurring, recurrence_interval, ...fallback } = dbUpdates;
+      ({ error } = await supabase.from('transactions').update(fallback).eq('id', id));
+    }
     if (error) { console.error('updateTransaction:', error); loadUserData(); return; }
     if (accountToUpdate) {
       for (const acc of accountToUpdate) {

@@ -1,85 +1,24 @@
-import { useState } from 'react';
-import { LayoutDashboard, ArrowLeftRight, Target, PiggyBank, X, TrendingUp, Wallet, Pencil, Check, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, ArrowLeftRight, Target, PiggyBank, X, TrendingUp, Wallet, CalendarDays, CreditCard } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../utils/formatters';
 
-const ACCOUNT_COLORS = [
-  '#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#84cc16',
-];
-
 const NAV_ITEMS = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'transactions', label: 'Transações', icon: ArrowLeftRight },
-  { id: 'budgets', label: 'Orçamentos', icon: PiggyBank },
-  { id: 'goals', label: 'Metas', icon: Target },
-  { id: 'annual', label: 'Resumo Anual', icon: CalendarDays },
+  { id: 'dashboard',    label: 'Dashboard',      icon: LayoutDashboard },
+  { id: 'transactions', label: 'Transações',      icon: ArrowLeftRight },
+  { id: 'accounts',     label: 'Contas',          icon: CreditCard },
+  { id: 'budgets',      label: 'Orçamentos',      icon: PiggyBank },
+  { id: 'goals',        label: 'Metas',           icon: Target },
+  { id: 'annual',       label: 'Resumo Anual',    icon: CalendarDays },
 ];
-
-function AccountEditRow({ account, onSave, onCancel }) {
-  const [name, setName] = useState(account.name);
-  const [color, setColor] = useState(account.color);
-
-  const handleSave = () => {
-    if (!name.trim()) return;
-    onSave({ name: name.trim(), color });
-  };
-
-  return (
-    <div className="space-y-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-600">
-      <input
-        type="text"
-        value={name}
-        onChange={e => setName(e.target.value)}
-        autoFocus
-        className="w-full px-3 py-1.5 text-sm rounded-xl border border-gray-200 dark:border-gray-600
-                   bg-white dark:bg-gray-700 text-gray-900 dark:text-white
-                   focus:outline-none focus:ring-2 focus:ring-violet-400"
-      />
-      <div className="flex flex-wrap gap-1.5">
-        {ACCOUNT_COLORS.map(c => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => setColor(c)}
-            className={`w-5 h-5 rounded-full transition-transform ${color === c ? 'scale-125 ring-2 ring-offset-1 ring-gray-400' : ''}`}
-            style={{ backgroundColor: c }}
-          />
-        ))}
-      </div>
-      <div className="flex gap-2">
-        <button
-          onClick={handleSave}
-          className="flex-1 py-1 text-xs bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-medium transition-colors"
-        >
-          Salvar
-        </button>
-        <button
-          onClick={onCancel}
-          className="flex-1 py-1 text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600
-                     text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors"
-        >
-          Cancelar
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export default function Sidebar() {
-  const { activePage, setActivePage, sidebarOpen, setSidebarOpen, totalBalance, totalInvested, data, updateAccount } = useApp();
+  const { activePage, setActivePage, sidebarOpen, setSidebarOpen, totalBalance, totalInvested } = useApp();
   const { user } = useAuth();
-  const [editingAccountId, setEditingAccountId] = useState(null);
 
   const navigate = (page) => {
     setActivePage(page);
     setSidebarOpen(false);
-  };
-
-  const handleSaveAccount = async (id, updates) => {
-    await updateAccount(id, updates);
-    setEditingAccountId(null);
   };
 
   return (
@@ -120,7 +59,7 @@ export default function Sidebar() {
         </div>
 
         {/* Financial summary cards */}
-        <div className="px-4 space-y-3 mb-4">
+        <div className="px-4 space-y-3 mb-6">
           <div className="bg-gradient-to-br from-violet-600 to-violet-700 rounded-3xl p-4 text-white
                           shadow-lg shadow-violet-200 dark:shadow-violet-900/40">
             <div className="flex items-center gap-2 mb-2">
@@ -138,44 +77,6 @@ export default function Sidebar() {
             <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalInvested)}</p>
           </div>
         </div>
-
-        {/* Accounts section */}
-        {data.accounts.length > 0 && (
-          <div className="px-4 mb-4">
-            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-1 mb-2">
-              Contas
-            </p>
-            <div className="space-y-1">
-              {data.accounts.map(account => (
-                <div key={account.id}>
-                  {editingAccountId === account.id ? (
-                    <AccountEditRow
-                      account={account}
-                      onSave={(updates) => handleSaveAccount(account.id, updates)}
-                      onCancel={() => setEditingAccountId(null)}
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-xl group hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: account.color }} />
-                      <span className="text-sm text-gray-700 dark:text-gray-300 flex-1 truncate">{account.name}</span>
-                      <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
-                        {formatCurrency(account.balance)}
-                      </span>
-                      <button
-                        onClick={() => setEditingAccountId(account.id)}
-                        className="w-6 h-6 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100
-                                   hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600
-                                   dark:hover:text-gray-200 transition-all"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Navigation */}
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
