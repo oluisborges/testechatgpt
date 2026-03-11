@@ -21,14 +21,16 @@ export default function Transactions() {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
 
-  const filtered = data.transactions.filter(tx => {
-    const matchMonth = getTransactionMonth(tx.date) === selectedMonth;
-    const matchType = filterType === 'all' || tx.type === filterType;
-    const matchSearch = !search ||
-      tx.description.toLowerCase().includes(search.toLowerCase()) ||
-      (tx.category || '').toLowerCase().includes(search.toLowerCase());
-    return matchMonth && matchType && matchSearch;
-  });
+  const filtered = data.transactions
+    .filter(tx => {
+      const matchMonth = getTransactionMonth(tx.date) === selectedMonth;
+      const matchType = filterType === 'all' || tx.type === filterType;
+      const matchSearch = !search ||
+        tx.description.toLowerCase().includes(search.toLowerCase()) ||
+        (tx.category || '').toLowerCase().includes(search.toLowerCase());
+      return matchMonth && matchType && matchSearch;
+    })
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''));
 
   const handleDelete = () => {
     if (confirmId) {

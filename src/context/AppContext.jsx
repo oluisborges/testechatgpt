@@ -14,7 +14,7 @@ const PAYMENT_METHODS = ['Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Di
 
 // ── Mappers Supabase → App ────────────────────────────────────────────────────
 const mapAccount     = (r) => ({ id: r.id, name: r.name, balance: parseFloat(r.balance), color: r.color });
-const mapTransaction = (r) => ({ id: r.id, type: r.type, description: r.description, amount: parseFloat(r.amount), date: r.date, category: r.category, accountId: r.account_id, paymentMethod: r.payment_method });
+const mapTransaction = (r) => ({ id: r.id, type: r.type, description: r.description, amount: parseFloat(r.amount), date: r.date, category: r.category, accountId: r.account_id, paymentMethod: r.payment_method, createdAt: r.created_at });
 const mapBudget      = (r) => ({ id: r.id, category: r.category, limit: parseFloat(r.limit) });
 const mapGoal        = (r) => ({ id: r.id, name: r.name, target: parseFloat(r.target), current: parseFloat(r.current), category: r.category, color: r.color, deadline: r.deadline || '' });
 
@@ -45,7 +45,7 @@ export function AppProvider({ user, children }) {
       { data: settings },
     ] = await Promise.all([
       supabase.from('accounts').select('*').eq('user_id', uid).order('created_at'),
-      supabase.from('transactions').select('*').eq('user_id', uid).order('date', { ascending: false }).order('created_at', { ascending: false }),
+      supabase.from('transactions').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
       supabase.from('budgets').select('*').eq('user_id', uid),
       supabase.from('goals').select('*').eq('user_id', uid),
       supabase.from('user_settings').select('*').eq('user_id', uid).maybeSingle(),
