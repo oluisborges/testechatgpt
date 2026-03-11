@@ -501,7 +501,7 @@ export function AppProvider({ user, children }) {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Insert transaction
+    // Insert transaction (carry over file attachment from bill)
     const insertPayload = {
       user_id: user.id,
       type: 'expense',
@@ -512,10 +512,12 @@ export function AppProvider({ user, children }) {
       account_id: bill.accountId || null,
       payment_method: bill.paymentMethod,
       notes: bill.description || null,
+      file_url: bill.fileUrl || null,
+      file_name: bill.fileName || null,
     };
     let { data: newTx, error: txError } = await supabase.from('transactions').insert(insertPayload).select().single();
     if (txError) {
-      const { notes, ...corePay } = insertPayload;
+      const { notes, file_url, file_name, ...corePay } = insertPayload;
       ({ data: newTx, error: txError } = await supabase.from('transactions').insert(corePay).select().single());
     }
     if (txError) { console.error('payBill - transaction:', txError); return; }
