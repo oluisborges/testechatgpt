@@ -1,18 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
+  Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { TrendingUp, TrendingDown, Wallet, BarChart3, Plus, ArrowRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, BarChart3, Plus, ArrowRight, ChevronLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
-  formatCurrency, formatDate, getLast6Months, getMonthName, getTransactionMonth,
+  formatCurrency, formatDate, getLast6MonthsFrom, getMonthName, getTransactionMonth,
 } from '../utils/formatters';
 import TransactionModal from './TransactionModal';
+import MonthFilter from './MonthFilter';
 
-const EXPENSE_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+const COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#84cc16'];
 
-function SummaryCard({ title, value, icon: Icon, color, trend }) {
+function SummaryCard({ title, value, icon: Icon, color }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700
                     hover:shadow-md transition-shadow">
@@ -23,11 +24,6 @@ function SummaryCard({ title, value, icon: Icon, color, trend }) {
         </div>
       </div>
       <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(value)}</p>
-      {trend !== undefined && (
-        <p className={`text-xs mt-1 ${trend >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-          {trend >= 0 ? '+' : ''}{formatCurrency(trend)} este mês
-        </p>
-      )}
     </div>
   );
 }
@@ -48,28 +44,36 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-const PieTooltip = ({ active, payload }) => {
-  if (!active || !payload?.length) return null;
+// Percentage label rendered inside each pie slice
+const renderSliceLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+  if (percent < 0.06) return null;
+  const RADIAN = Math.PI / 180;
+  const r = innerRadius + (outerRadius - innerRadius) * 0.55;
+  const x = cx + r * Math.cos(-midAngle * RADIAN);
+  const y = cy + r * Math.sin(-midAngle * RADIAN);
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl
-                    shadow-lg p-3 text-sm">
-      <p className="font-semibold" style={{ color: payload[0].fill }}>{payload[0].name}</p>
-      <p className="text-gray-700 dark:text-gray-200">{formatCurrency(payload[0].value)}</p>
-    </div>
+    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central"
+          fontSize={10} fontWeight={700}>
+      {`${(percent * 100).toFixed(0)}%`}
+    </text>
   );
 };
 
 export default function Dashboard() {
   const {
-    data, totalBalance, totalInvested, monthlyIncome, monthlyExpenses,
-    monthlyInvestments, currentMonth, setActivePage,
+    data, totalBalance, monthlyIncome, monthlyExpenses,
+    monthlyInvestments, selectedMonth, setActivePage,
   } = useApp();
 
   const [txModalOpen, setTxModalOpen] = useState(false);
   const [pieView, setPieView] = useState('expense');
+  const [drillCategory, setDrillCategory] = useState(null);
 
-  // ── Area chart data ───────────────────────────────────────────────────────────
-  const last6 = getLast6Months();
+  // Reset drill-down when switching view or month
+  useEffect(() => { setDrillCategory(null); }, [pieView, selectedMonth]);
+
+  // ── Area chart ────────────────────────────────────────────────────────────
+  const last6 = getLast6MonthsFrom(selectedMonth);
   const chartData = last6.map(month => {
     const txs = data.transactions.filter(t => getTransactionMonth(t.date) === month);
     return {
@@ -80,19 +84,39 @@ export default function Dashboard() {
     };
   });
 
-  // ── Pie chart data ────────────────────────────────────────────────────────────
+  // ── Pie chart data ────────────────────────────────────────────────────────
+  const baseTxs = data.transactions.filter(t =>
+    t.type === pieView && getTransactionMonth(t.date) === selectedMonth
+  );
+
   const pieData = (() => {
-    const txs = data.transactions.filter(t =>
-      t.type === pieView && getTransactionMonth(t.date) === currentMonth
-    );
+    if (drillCategory) {
+      // Drill-down: individual transactions in the selected category
+      const catTxs = baseTxs.filter(t => (t.category || 'Outros') === drillCategory);
+      const groups = {};
+      catTxs.forEach(t => {
+        groups[t.description] = (groups[t.description] || 0) + t.amount;
+      });
+      return Object.entries(groups)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+    }
+    // Overview: group by category
     const groups = {};
-    txs.forEach(t => {
+    baseTxs.forEach(t => {
       groups[t.category || 'Outros'] = (groups[t.category || 'Outros'] || 0) + t.amount;
     });
-    return Object.entries(groups).map(([name, value]) => ({ name, value }));
+    return Object.entries(groups)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
   })();
 
-  const recentTx = data.transactions.slice(0, 5);
+  const totalPie = pieData.reduce((s, d) => s + d.value, 0);
+
+  // ── Recent transactions ───────────────────────────────────────────────────
+  const recentTx = data.transactions
+    .filter(t => getTransactionMonth(t.date) === selectedMonth)
+    .slice(0, 5);
 
   const txTypeStyle = {
     income: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20',
@@ -104,28 +128,31 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Resumo financeiro do mês atual</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Resumo financeiro mensal</p>
         </div>
-        <button
-          onClick={() => setTxModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
-                     text-white rounded-2xl font-medium transition-colors shadow-lg
-                     shadow-violet-200 dark:shadow-violet-900/40 text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Lançar</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <MonthFilter />
+          <button
+            onClick={() => setTxModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
+                       text-white rounded-2xl font-medium transition-colors shadow-lg
+                       shadow-violet-200 dark:shadow-violet-900/40 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Lançar</span>
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard title="Receitas" value={monthlyIncome} icon={TrendingUp} color="bg-emerald-500" />
-        <SummaryCard title="Despesas" value={monthlyExpenses} icon={TrendingDown} color="bg-red-400" />
-        <SummaryCard title="Investido" value={monthlyInvestments} icon={BarChart3} color="bg-violet-500" />
-        <SummaryCard title="Saldo em Contas" value={totalBalance} icon={Wallet} color="bg-blue-500" />
+        <SummaryCard title="Receitas"       value={monthlyIncome}      icon={TrendingUp}  color="bg-emerald-500" />
+        <SummaryCard title="Despesas"       value={monthlyExpenses}    icon={TrendingDown} color="bg-red-400" />
+        <SummaryCard title="Investido"      value={monthlyInvestments} icon={BarChart3}   color="bg-violet-500" />
+        <SummaryCard title="Saldo em Contas" value={totalBalance}      icon={Wallet}      color="bg-blue-500" />
       </div>
 
       {/* Charts row */}
@@ -155,55 +182,126 @@ export default function Dashboard() {
               <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
                      tickFormatter={v => `R$${(v/1000).toFixed(0)}k`} />
               <Tooltip content={<CustomTooltip />} />
-              <Legend iconType="circle" iconSize={8} />
-              <Area type="monotone" dataKey="Receitas" stroke="#10b981" strokeWidth={2.5}
-                    fill="url(#gradIncome)" />
-              <Area type="monotone" dataKey="Despesas" stroke="#ef4444" strokeWidth={2.5}
-                    fill="url(#gradExpense)" />
-              <Area type="monotone" dataKey="Investimentos" stroke="#6366f1" strokeWidth={2.5}
-                    fill="url(#gradInvest)" />
+              <Area type="monotone" dataKey="Receitas"     stroke="#10b981" strokeWidth={2.5} fill="url(#gradIncome)" />
+              <Area type="monotone" dataKey="Despesas"     stroke="#ef4444" strokeWidth={2.5} fill="url(#gradExpense)" />
+              <Area type="monotone" dataKey="Investimentos" stroke="#6366f1" strokeWidth={2.5} fill="url(#gradInvest)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Pie chart */}
+        {/* Pie chart — Distribution */}
         <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm
-                        border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Distribuição</h3>
-            <div className="flex p-1 bg-gray-100 dark:bg-gray-700 rounded-xl gap-1">
-              {['expense', 'investment'].map(v => (
+                        border border-gray-100 dark:border-gray-700 flex flex-col">
+
+          {/* Card header */}
+          <div className="flex items-center justify-between mb-3 shrink-0">
+            <div className="flex items-center gap-2">
+              {drillCategory && (
                 <button
-                  key={v}
-                  onClick={() => setPieView(v)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all
-                              ${pieView === v
-                                ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                                : 'text-gray-500 dark:text-gray-400'}`}
+                  onClick={() => setDrillCategory(null)}
+                  className="w-7 h-7 flex items-center justify-center rounded-xl
+                             hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
-                  {v === 'expense' ? 'Gastos' : 'Investimentos'}
+                  <ChevronLeft className="w-4 h-4 text-gray-500" />
                 </button>
-              ))}
+              )}
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white leading-tight">
+                  {drillCategory ?? 'Distribuição'}
+                </h3>
+                {drillCategory && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    {pieView === 'expense' ? 'Gastos' : 'Investimentos'} · clique para voltar
+                  </p>
+                )}
+              </div>
             </div>
+            {!drillCategory && (
+              <div className="flex p-1 bg-gray-100 dark:bg-gray-700 rounded-xl gap-1">
+                {['expense', 'investment'].map(v => (
+                  <button
+                    key={v}
+                    onClick={() => setPieView(v)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all
+                                ${pieView === v
+                                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                                  : 'text-gray-500 dark:text-gray-400'}`}
+                  >
+                    {v === 'expense' ? 'Gastos' : 'Investimentos'}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {pieData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={190}>
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                     paddingAngle={3} dataKey="value">
-                  {pieData.map((_, i) => (
-                    <Cell key={i} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip content={<PieTooltip />} />
-                <Legend iconType="circle" iconSize={8} formatter={(val) =>
-                  <span className="text-xs text-gray-600 dark:text-gray-300">{val}</span>
-                } />
-              </PieChart>
-            </ResponsiveContainer>
+            <>
+              {/* Donut with center label */}
+              <div className="relative shrink-0">
+                <ResponsiveContainer width="100%" height={160}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%" cy="50%"
+                      innerRadius={45} outerRadius={72}
+                      paddingAngle={2}
+                      dataKey="value"
+                      labelLine={false}
+                      label={renderSliceLabel}
+                      onClick={!drillCategory ? (entry) => setDrillCategory(entry.name) : undefined}
+                      style={{ cursor: drillCategory ? 'default' : 'pointer' }}
+                    >
+                      {pieData.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center total */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400 dark:text-gray-500 leading-tight">Total</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
+                      {formatCurrency(totalPie)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom legend with value + percentage */}
+              <div className="flex-1 overflow-y-auto mt-1 space-y-1 min-h-0">
+                {pieData.map((entry, i) => {
+                  const pct = totalPie > 0 ? (entry.value / totalPie) * 100 : 0;
+                  return (
+                    <div
+                      key={entry.name}
+                      onClick={!drillCategory ? () => setDrillCategory(entry.name) : undefined}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded-xl transition-colors
+                                  ${!drillCategory ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : ''}`}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                      />
+                      <span className="flex-1 text-xs text-gray-700 dark:text-gray-300 truncate">
+                        {entry.name}
+                      </span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                        {formatCurrency(entry.value)}
+                      </span>
+                      <span
+                        className="text-xs font-bold shrink-0 min-w-8 text-right"
+                        style={{ color: COLORS[i % COLORS.length] }}
+                      >
+                        {pct.toFixed(0)}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           ) : (
-            <div className="h-48 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center">
               <p className="text-sm text-gray-400 dark:text-gray-500">Sem dados este mês</p>
             </div>
           )}
@@ -225,12 +323,12 @@ export default function Dashboard() {
 
         {recentTx.length === 0 ? (
           <div className="py-10 text-center">
-            <p className="text-gray-400 dark:text-gray-500 text-sm">Nenhum lançamento ainda.</p>
+            <p className="text-gray-400 dark:text-gray-500 text-sm">Nenhum lançamento neste mês.</p>
             <button
               onClick={() => setTxModalOpen(true)}
               className="mt-3 text-sm text-violet-600 dark:text-violet-400 font-medium hover:underline"
             >
-              Adicionar primeiro lançamento
+              Adicionar lançamento
             </button>
           </div>
         ) : (
@@ -240,7 +338,7 @@ export default function Dashboard() {
               return (
                 <div key={tx.id}
                   className="flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50
-                             dark:hover:bg-gray-700/50 transition-colors group">
+                             dark:hover:bg-gray-700/50 transition-colors">
                   <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-lg
                                    font-bold shrink-0 ${txTypeStyle[tx.type]}`}>
                     {txSign[tx.type]}

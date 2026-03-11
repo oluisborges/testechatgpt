@@ -14,7 +14,7 @@ const PAYMENT_METHODS = ['Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Di
 
 // ── Mappers Supabase → App ────────────────────────────────────────────────────
 const mapAccount     = (r) => ({ id: r.id, name: r.name, balance: parseFloat(r.balance), color: r.color });
-const mapTransaction = (r) => ({ id: r.id, type: r.type, description: r.description, amount: parseFloat(r.amount), date: r.date, category: r.category, accountId: r.account_id, paymentMethod: r.payment_method });
+const mapTransaction = (r) => ({ id: r.id, type: r.type, description: r.description, amount: parseFloat(r.amount), date: r.date, category: r.category, accountId: r.account_id, paymentMethod: r.payment_method, createdAt: r.created_at });
 const mapBudget      = (r) => ({ id: r.id, category: r.category, limit: parseFloat(r.limit) });
 const mapGoal        = (r) => ({ id: r.id, name: r.name, target: parseFloat(r.target), current: parseFloat(r.current), category: r.category, color: r.color, deadline: r.deadline || '' });
 
@@ -23,6 +23,7 @@ export function AppProvider({ user, children }) {
     accounts: [], transactions: [], budgets: [], goals: [], categories: DEFAULT_CATEGORIES,
   });
   const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState(() => getCurrentMonth());
   const [theme, setTheme] = useState(() => {
     const stored = localStorage.getItem('nosso_controle_theme');
     if (stored) return stored;
@@ -44,13 +45,12 @@ export function AppProvider({ user, children }) {
       { data: settings },
     ] = await Promise.all([
       supabase.from('accounts').select('*').eq('user_id', uid).order('created_at'),
-      supabase.from('transactions').select('*').eq('user_id', uid).order('date', { ascending: false }).order('created_at', { ascending: false }),
+      supabase.from('transactions').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
       supabase.from('budgets').select('*').eq('user_id', uid),
       supabase.from('goals').select('*').eq('user_id', uid),
       supabase.from('user_settings').select('*').eq('user_id', uid).maybeSingle(),
     ]);
 
-    // First-time user: create default accounts + settings
     if (!accounts?.length) {
       const { data: newAccounts } = await supabase.from('accounts').insert([
         { user_id: uid, name: 'Banco Principal', balance: 0, color: '#6366f1' },
@@ -81,14 +81,21 @@ export function AppProvider({ user, children }) {
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
   // ── Computed ──────────────────────────────────────────────────────────────
-  const totalBalance   = data.accounts.reduce((s, a) => s + (a.balance || 0), 0);
-  const totalInvested  = data.goals.reduce((s, g) => s + (g.current || 0), 0);
-  const currentMonth   = getCurrentMonth();
+  // totalBalance: all-time net (income − expense − investment) — independent of month filter
+  const totalBalance = data.transactions.reduce(
+    (s, t) => t.type === 'income' ? s + t.amount : s - t.amount, 0
+  );
+  // totalInvested: all-time sum of investment transactions
+  const totalInvested = data.transactions
+    .filter(t => t.type === 'investment')
+    .reduce((s, t) => s + t.amount, 0);
 
-  const currentMonthTransactions = data.transactions.filter(t => getTransactionMonth(t.date) === currentMonth);
-  const monthlyIncome      = currentMonthTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const monthlyExpenses    = currentMonthTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-  const monthlyInvestments = currentMonthTransactions.filter(t => t.type === 'investment').reduce((s, t) => s + t.amount, 0);
+  const currentMonth = getCurrentMonth();
+
+  const selectedMonthTxs = data.transactions.filter(t => getTransactionMonth(t.date) === selectedMonth);
+  const monthlyIncome      = selectedMonthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const monthlyExpenses    = selectedMonthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const monthlyInvestments = selectedMonthTxs.filter(t => t.type === 'investment').reduce((s, t) => s + t.amount, 0);
 
   // ── Transactions ──────────────────────────────────────────────────────────
   const addTransaction = useCallback(async (tx) => {
@@ -96,70 +103,98 @@ export function AppProvider({ user, children }) {
       user_id: user.id, type: tx.type, description: tx.description, amount: tx.amount,
       date: tx.date, category: tx.category, account_id: tx.accountId, payment_method: tx.paymentMethod,
     }).select().single();
-    if (error) { console.error(error); return; }
+    if (error) { console.error('addTransaction:', error); return; }
 
-    let delta = tx.type === 'income' ? tx.amount : -tx.amount;
+    const delta = tx.type === 'income' ? tx.amount : -tx.amount;
+    let accountToUpdate = null;
+    const goalToUpdates = [];
 
     setData(prev => {
       const account = prev.accounts.find(a => a.id === tx.accountId);
+      const newBalance = (account?.balance || 0) + delta;
+      if (account) accountToUpdate = { id: tx.accountId, balance: newBalance };
+
       const accounts = prev.accounts.map(a =>
-        a.id === tx.accountId ? { ...a, balance: a.balance + delta } : a
+        a.id === tx.accountId ? { ...a, balance: newBalance } : a
       );
-      if (account) supabase.from('accounts').update({ balance: account.balance + delta }).eq('id', tx.accountId);
 
       let goals = prev.goals;
       if (tx.type === 'investment') {
         goals = prev.goals.map(g => {
           if (g.category !== tx.category) return g;
           const newCurrent = Math.min(g.target, g.current + tx.amount);
-          supabase.from('goals').update({ current: newCurrent }).eq('id', g.id);
+          goalToUpdates.push({ id: g.id, current: newCurrent });
           return { ...g, current: newCurrent };
         });
       }
 
       return { ...prev, transactions: [mapTransaction(newTx), ...prev.transactions], accounts, goals };
     });
+
+    if (accountToUpdate) {
+      await supabase.from('accounts').update({ balance: accountToUpdate.balance }).eq('id', accountToUpdate.id);
+    }
+    for (const gu of goalToUpdates) {
+      await supabase.from('goals').update({ current: gu.current }).eq('id', gu.id);
+    }
   }, [user.id]);
 
   const deleteTransaction = useCallback(async (id) => {
+    let accountToUpdate = null;
+    const goalToUpdates = [];
+
     setData(prev => {
       const tx = prev.transactions.find(t => t.id === id);
       if (!tx) return prev;
 
-      supabase.from('transactions').delete().eq('id', id);
-
-      let delta = tx.type === 'income' ? -tx.amount : tx.amount;
+      const delta = tx.type === 'income' ? -tx.amount : tx.amount;
       const account = prev.accounts.find(a => a.id === tx.accountId);
+      const newBalance = (account?.balance || 0) + delta;
+      if (account) accountToUpdate = { id: tx.accountId, balance: newBalance };
+
       const accounts = prev.accounts.map(a =>
-        a.id === tx.accountId ? { ...a, balance: a.balance + delta } : a
+        a.id === tx.accountId ? { ...a, balance: newBalance } : a
       );
-      if (account) supabase.from('accounts').update({ balance: account.balance + delta }).eq('id', tx.accountId);
 
       let goals = prev.goals;
       if (tx.type === 'investment') {
         goals = prev.goals.map(g => {
           if (g.category !== tx.category) return g;
           const newCurrent = Math.max(0, g.current - tx.amount);
-          supabase.from('goals').update({ current: newCurrent }).eq('id', g.id);
+          goalToUpdates.push({ id: g.id, current: newCurrent });
           return { ...g, current: newCurrent };
         });
       }
 
       return { ...prev, transactions: prev.transactions.filter(t => t.id !== id), accounts, goals };
     });
-  }, []);
+
+    const { error } = await supabase.from('transactions').delete().eq('id', id);
+    if (error) {
+      console.error('deleteTransaction:', error);
+      loadUserData();
+      return;
+    }
+    if (accountToUpdate) {
+      await supabase.from('accounts').update({ balance: accountToUpdate.balance }).eq('id', accountToUpdate.id);
+    }
+    for (const gu of goalToUpdates) {
+      await supabase.from('goals').update({ current: gu.current }).eq('id', gu.id);
+    }
+  }, [loadUserData]);
 
   // ── Accounts ──────────────────────────────────────────────────────────────
   const addAccount = useCallback(async (account) => {
     const { data: newAcc, error } = await supabase.from('accounts').insert({
       user_id: user.id, name: account.name, balance: account.balance || 0, color: account.color,
     }).select().single();
-    if (error) { console.error(error); return; }
+    if (error) { console.error('addAccount:', error); return; }
     setData(prev => ({ ...prev, accounts: [...prev.accounts, mapAccount(newAcc)] }));
   }, [user.id]);
 
   const deleteAccount = useCallback(async (id) => {
-    await supabase.from('accounts').delete().eq('id', id);
+    const { error } = await supabase.from('accounts').delete().eq('id', id);
+    if (error) { console.error('deleteAccount:', error); return; }
     setData(prev => ({
       ...prev,
       accounts: prev.accounts.filter(a => a.id !== id),
@@ -173,7 +208,7 @@ export function AppProvider({ user, children }) {
       { user_id: user.id, category: budget.category, limit: budget.limit },
       { onConflict: 'user_id,category' }
     ).select().single();
-    if (error) { console.error(error); return; }
+    if (error) { console.error('addBudget:', error); return; }
 
     setData(prev => {
       const exists = prev.budgets.find(b => b.category === budget.category);
@@ -187,9 +222,10 @@ export function AppProvider({ user, children }) {
   }, [user.id]);
 
   const deleteBudget = useCallback(async (id) => {
+    const { error } = await supabase.from('budgets').delete().eq('id', id);
+    if (error) { console.error('deleteBudget:', error); return; }
     setData(prev => {
       const budget = prev.budgets.find(b => b.id === id);
-      supabase.from('budgets').delete().eq('id', id);
       return {
         ...prev,
         budgets: prev.budgets.filter(b => b.id !== id),
@@ -202,9 +238,9 @@ export function AppProvider({ user, children }) {
 
   const getBudgetSpent = useCallback((category) =>
     data.transactions
-      .filter(t => t.type === 'expense' && t.category === category && getTransactionMonth(t.date) === currentMonth)
+      .filter(t => t.type === 'expense' && t.category === category && getTransactionMonth(t.date) === selectedMonth)
       .reduce((s, t) => s + t.amount, 0),
-  [data.transactions, currentMonth]);
+  [data.transactions, selectedMonth]);
 
   // ── Goals ─────────────────────────────────────────────────────────────────
   const addGoal = useCallback(async (goal) => {
@@ -212,27 +248,34 @@ export function AppProvider({ user, children }) {
       user_id: user.id, name: goal.name, target: goal.target, current: goal.current || 0,
       category: goal.category, color: goal.color, deadline: goal.deadline || null,
     }).select().single();
-    if (error) { console.error(error); return; }
+    if (error) { console.error('addGoal:', error); return; }
 
+    let updatedCategories = null;
     setData(prev => {
       const categories = { ...prev.categories };
       if (!categories.investment.includes(goal.category)) {
         categories.investment = [...categories.investment, goal.category];
-        supabase.from('user_settings').upsert({ user_id: user.id, categories });
+        updatedCategories = categories;
       }
       return { ...prev, goals: [...prev.goals, mapGoal(newGoal)], categories };
     });
+
+    if (updatedCategories) {
+      await supabase.from('user_settings').upsert({ user_id: user.id, categories: updatedCategories });
+    }
   }, [user.id]);
 
   const updateGoal = useCallback(async (id, updates) => {
-    await supabase.from('goals').update(updates).eq('id', id);
+    const { error } = await supabase.from('goals').update(updates).eq('id', id);
+    if (error) { console.error('updateGoal:', error); return; }
     setData(prev => ({ ...prev, goals: prev.goals.map(g => g.id === id ? { ...g, ...updates } : g) }));
   }, []);
 
   const deleteGoal = useCallback(async (id) => {
+    const { error } = await supabase.from('goals').delete().eq('id', id);
+    if (error) { console.error('deleteGoal:', error); return; }
     setData(prev => {
       const goal = prev.goals.find(g => g.id === id);
-      supabase.from('goals').delete().eq('id', id);
       return {
         ...prev,
         goals: prev.goals.filter(g => g.id !== id),
@@ -245,17 +288,22 @@ export function AppProvider({ user, children }) {
 
   // ── Categories ────────────────────────────────────────────────────────────
   const addCategory = useCallback(async (type, name) => {
+    let newCategories = null;
     setData(prev => {
       if (prev.categories[type]?.includes(name)) return prev;
       const categories = { ...prev.categories, [type]: [...(prev.categories[type] || []), name] };
-      supabase.from('user_settings').upsert({ user_id: user.id, categories });
+      newCategories = categories;
       return { ...prev, categories };
     });
+    if (newCategories) {
+      await supabase.from('user_settings').upsert({ user_id: user.id, categories: newCategories });
+    }
   }, [user.id]);
 
   const value = {
     data, loading, theme, activePage, sidebarOpen,
     totalBalance, totalInvested, currentMonth,
+    selectedMonth, setSelectedMonth,
     monthlyIncome, monthlyExpenses, monthlyInvestments,
     PAYMENT_METHODS,
     toggleTheme, setActivePage, setSidebarOpen,

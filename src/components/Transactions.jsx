@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Plus, Trash2, Search, Filter } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { formatCurrency, formatDate } from '../utils/formatters';
+import { formatCurrency, formatDate, getTransactionMonth } from '../utils/formatters';
 import TransactionModal from './TransactionModal';
 import ConfirmModal from './ConfirmModal';
+import MonthFilter from './MonthFilter';
 
 const TYPE_LABELS = { income: 'Receita', expense: 'Despesa', investment: 'Investimento' };
 const TYPE_STYLES = {
@@ -13,20 +14,23 @@ const TYPE_STYLES = {
 };
 
 export default function Transactions() {
-  const { data, deleteTransaction } = useApp();
+  const { data, deleteTransaction, selectedMonth } = useApp();
 
   const [txModalOpen, setTxModalOpen] = useState(false);
   const [confirmId, setConfirmId] = useState(null);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
 
-  const filtered = data.transactions.filter(tx => {
-    const matchType = filterType === 'all' || tx.type === filterType;
-    const matchSearch = !search ||
-      tx.description.toLowerCase().includes(search.toLowerCase()) ||
-      (tx.category || '').toLowerCase().includes(search.toLowerCase());
-    return matchType && matchSearch;
-  });
+  const filtered = data.transactions
+    .filter(tx => {
+      const matchMonth = getTransactionMonth(tx.date) === selectedMonth;
+      const matchType = filterType === 'all' || tx.type === filterType;
+      const matchSearch = !search ||
+        tx.description.toLowerCase().includes(search.toLowerCase()) ||
+        (tx.category || '').toLowerCase().includes(search.toLowerCase());
+      return matchMonth && matchType && matchSearch;
+    })
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''));
 
   const handleDelete = () => {
     if (confirmId) {
@@ -40,22 +44,25 @@ export default function Transactions() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Transações</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {filtered.length} lançamento{filtered.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button
-          onClick={() => setTxModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
-                     text-white rounded-2xl font-medium transition-colors shadow-lg
-                     shadow-violet-200 dark:shadow-violet-900/40 text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Novo Lançamento</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <MonthFilter />
+          <button
+            onClick={() => setTxModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
+                       text-white rounded-2xl font-medium transition-colors shadow-lg
+                       shadow-violet-200 dark:shadow-violet-900/40 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Novo</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -95,14 +102,14 @@ export default function Transactions() {
           <div className="py-16 text-center">
             <Filter className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
             <p className="text-gray-400 dark:text-gray-500 text-sm">
-              {search || filterType !== 'all' ? 'Nenhum resultado encontrado.' : 'Nenhum lançamento ainda.'}
+              {search || filterType !== 'all' ? 'Nenhum resultado encontrado.' : 'Nenhum lançamento neste mês.'}
             </p>
             {!search && filterType === 'all' && (
               <button
                 onClick={() => setTxModalOpen(true)}
                 className="mt-3 text-sm text-violet-600 dark:text-violet-400 font-medium hover:underline"
               >
-                Adicionar primeiro lançamento
+                Adicionar lançamento
               </button>
             )}
           </div>
@@ -116,12 +123,10 @@ export default function Transactions() {
                   className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/30
                              transition-colors group"
                 >
-                  {/* Type badge */}
                   <div className={`shrink-0 px-2.5 py-1 rounded-xl text-xs font-semibold ${TYPE_STYLES[tx.type]}`}>
                     {TYPE_LABELS[tx.type]}
                   </div>
 
-                  {/* Description */}
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
                       {tx.description}
@@ -133,12 +138,10 @@ export default function Transactions() {
                     </p>
                   </div>
 
-                  {/* Date */}
                   <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0 hidden sm:block">
                     {formatDate(tx.date)}
                   </span>
 
-                  {/* Amount */}
                   <span className={`text-sm font-bold shrink-0 ${
                     tx.type === 'income' ? 'text-emerald-500' :
                     tx.type === 'expense' ? 'text-red-500' : 'text-violet-600 dark:text-violet-400'
@@ -146,7 +149,6 @@ export default function Transactions() {
                     {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
                   </span>
 
-                  {/* Delete */}
                   <button
                     onClick={() => setConfirmId(tx.id)}
                     className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center
