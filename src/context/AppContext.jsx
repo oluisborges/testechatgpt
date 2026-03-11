@@ -50,7 +50,6 @@ export function AppProvider({ user, children }) {
       supabase.from('user_settings').select('*').eq('user_id', uid).maybeSingle(),
     ]);
 
-    // First-time user: create default accounts + settings
     if (!accounts?.length) {
       const { data: newAccounts } = await supabase.from('accounts').insert([
         { user_id: uid, name: 'Banco Principal', balance: 0, color: '#6366f1' },
@@ -96,12 +95,11 @@ export function AppProvider({ user, children }) {
       user_id: user.id, type: tx.type, description: tx.description, amount: tx.amount,
       date: tx.date, category: tx.category, account_id: tx.accountId, payment_method: tx.paymentMethod,
     }).select().single();
-    if (error) { console.error(error); return; }
+    if (error) { console.error('addTransaction:', error); return; }
 
-    let delta = tx.type === 'income' ? tx.amount : -tx.amount;
-
+    const delta = tx.type === 'income' ? tx.amount : -tx.amount;
     let accountToUpdate = null;
-    let goalToUpdates = [];
+    const goalToUpdates = [];
 
     setData(prev => {
       const account = prev.accounts.find(a => a.id === tx.accountId);
@@ -135,13 +133,13 @@ export function AppProvider({ user, children }) {
 
   const deleteTransaction = useCallback(async (id) => {
     let accountToUpdate = null;
-    let goalToUpdates = [];
+    const goalToUpdates = [];
 
     setData(prev => {
       const tx = prev.transactions.find(t => t.id === id);
       if (!tx) return prev;
 
-      let delta = tx.type === 'income' ? -tx.amount : tx.amount;
+      const delta = tx.type === 'income' ? -tx.amount : tx.amount;
       const account = prev.accounts.find(a => a.id === tx.accountId);
       const newBalance = (account?.balance || 0) + delta;
       if (account) accountToUpdate = { id: tx.accountId, balance: newBalance };
@@ -165,7 +163,7 @@ export function AppProvider({ user, children }) {
 
     const { error } = await supabase.from('transactions').delete().eq('id', id);
     if (error) {
-      console.error('deleteTransaction failed:', error);
+      console.error('deleteTransaction:', error);
       loadUserData();
       return;
     }
@@ -182,12 +180,13 @@ export function AppProvider({ user, children }) {
     const { data: newAcc, error } = await supabase.from('accounts').insert({
       user_id: user.id, name: account.name, balance: account.balance || 0, color: account.color,
     }).select().single();
-    if (error) { console.error(error); return; }
+    if (error) { console.error('addAccount:', error); return; }
     setData(prev => ({ ...prev, accounts: [...prev.accounts, mapAccount(newAcc)] }));
   }, [user.id]);
 
   const deleteAccount = useCallback(async (id) => {
-    await supabase.from('accounts').delete().eq('id', id);
+    const { error } = await supabase.from('accounts').delete().eq('id', id);
+    if (error) { console.error('deleteAccount:', error); return; }
     setData(prev => ({
       ...prev,
       accounts: prev.accounts.filter(a => a.id !== id),
@@ -201,7 +200,7 @@ export function AppProvider({ user, children }) {
       { user_id: user.id, category: budget.category, limit: budget.limit },
       { onConflict: 'user_id,category' }
     ).select().single();
-    if (error) { console.error(error); return; }
+    if (error) { console.error('addBudget:', error); return; }
 
     setData(prev => {
       const exists = prev.budgets.find(b => b.category === budget.category);
@@ -215,9 +214,10 @@ export function AppProvider({ user, children }) {
   }, [user.id]);
 
   const deleteBudget = useCallback(async (id) => {
+    const { error } = await supabase.from('budgets').delete().eq('id', id);
+    if (error) { console.error('deleteBudget:', error); return; }
     setData(prev => {
       const budget = prev.budgets.find(b => b.id === id);
-      supabase.from('budgets').delete().eq('id', id);
       return {
         ...prev,
         budgets: prev.budgets.filter(b => b.id !== id),
@@ -240,27 +240,34 @@ export function AppProvider({ user, children }) {
       user_id: user.id, name: goal.name, target: goal.target, current: goal.current || 0,
       category: goal.category, color: goal.color, deadline: goal.deadline || null,
     }).select().single();
-    if (error) { console.error(error); return; }
+    if (error) { console.error('addGoal:', error); return; }
 
+    let updatedCategories = null;
     setData(prev => {
       const categories = { ...prev.categories };
       if (!categories.investment.includes(goal.category)) {
         categories.investment = [...categories.investment, goal.category];
-        supabase.from('user_settings').upsert({ user_id: user.id, categories });
+        updatedCategories = categories;
       }
       return { ...prev, goals: [...prev.goals, mapGoal(newGoal)], categories };
     });
+
+    if (updatedCategories) {
+      await supabase.from('user_settings').upsert({ user_id: user.id, categories: updatedCategories });
+    }
   }, [user.id]);
 
   const updateGoal = useCallback(async (id, updates) => {
-    await supabase.from('goals').update(updates).eq('id', id);
+    const { error } = await supabase.from('goals').update(updates).eq('id', id);
+    if (error) { console.error('updateGoal:', error); return; }
     setData(prev => ({ ...prev, goals: prev.goals.map(g => g.id === id ? { ...g, ...updates } : g) }));
   }, []);
 
   const deleteGoal = useCallback(async (id) => {
+    const { error } = await supabase.from('goals').delete().eq('id', id);
+    if (error) { console.error('deleteGoal:', error); return; }
     setData(prev => {
       const goal = prev.goals.find(g => g.id === id);
-      supabase.from('goals').delete().eq('id', id);
       return {
         ...prev,
         goals: prev.goals.filter(g => g.id !== id),
@@ -273,12 +280,16 @@ export function AppProvider({ user, children }) {
 
   // ── Categories ────────────────────────────────────────────────────────────
   const addCategory = useCallback(async (type, name) => {
+    let newCategories = null;
     setData(prev => {
       if (prev.categories[type]?.includes(name)) return prev;
       const categories = { ...prev.categories, [type]: [...(prev.categories[type] || []), name] };
-      supabase.from('user_settings').upsert({ user_id: user.id, categories });
+      newCategories = categories;
       return { ...prev, categories };
     });
+    if (newCategories) {
+      await supabase.from('user_settings').upsert({ user_id: user.id, categories: newCategories });
+    }
   }, [user.id]);
 
   const value = {
