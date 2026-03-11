@@ -26,6 +26,7 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
   });
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -54,6 +55,7 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
       });
     }
     setFile(null);
+    setSaveError('');
   }, [isOpen, isEdit, bill, data.accounts]);
 
   if (!isOpen) return null;
@@ -64,14 +66,21 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
     e.preventDefault();
     if (!form.name || !form.amount || !form.dueDate) return;
     setSaving(true);
+    setSaveError('');
     const payload = { ...form, amount: centsToFloat(form.amount) };
     if (isEdit) {
       await updateBill(bill.id, payload, file);
+      setSaving(false);
+      onClose();
     } else {
-      await addBill(payload, file);
+      const ok = await addBill(payload, file);
+      setSaving(false);
+      if (ok) {
+        onClose();
+      } else {
+        setSaveError('Não foi possível salvar. Verifique se a migration da tabela bills foi executada no Supabase.');
+      }
     }
-    setSaving(false);
-    onClose();
   };
 
   const expenseCategories = data.categories.expense || [];
@@ -188,6 +197,13 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
               </button>
             )}
           </div>
+
+          {saveError && (
+            <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-2xl
+                            border border-red-100 dark:border-red-800/30">
+              <span className="text-xs text-red-600 dark:text-red-400">{saveError}</span>
+            </div>
+          )}
 
           <button type="submit" disabled={saving}
             className="w-full py-3 rounded-2xl bg-violet-600 hover:bg-violet-700 disabled:opacity-60

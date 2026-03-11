@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { id: 'dashboard',    label: 'Dashboard',       icon: LayoutDashboard },
   { id: 'transactions', label: 'Transações',       icon: ArrowLeftRight },
   { id: 'bills',        label: 'Contas a Pagar',   icon: Receipt },
-  { id: 'accounts',     label: 'Contas',           icon: CreditCard },
+  { id: 'accounts',     label: 'Contas Bancárias', icon: CreditCard },
   { id: 'budgets',      label: 'Orçamentos',       icon: PiggyBank },
   { id: 'goals',        label: 'Metas',            icon: Target },
   { id: 'annual',       label: 'Resumo Anual',     icon: CalendarDays },

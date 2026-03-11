@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
 import {
   Plus, Trash2, Pencil, CheckCircle2, Copy, ExternalLink,
-  Paperclip, AlertCircle, Clock, CheckCheck, Receipt,
+  Paperclip, AlertCircle, Clock, CheckCheck, Receipt, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { formatCurrency, formatDate } from '../utils/formatters';
+import { formatCurrency, formatDate, getCurrentMonth, getPrevMonth, getNextMonth, getMonthLabel } from '../utils/formatters';
 import BillModal from './BillModal';
 import ConfirmModal from './ConfirmModal';
 
@@ -76,27 +76,32 @@ function CopyButton({ text }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Bills() {
-  const { data, deleteBill, payBill } = useApp();
+  const { data, deleteBill, payBill, billsTableExists } = useApp();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingBill, setEditingBill] = useState(null);
   const [confirmPay, setConfirmPay] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [filter, setFilter] = useState('pending'); // all | pending | overdue | paid
+  const [billsMonth, setBillsMonth] = useState(getCurrentMonth());
 
+  const currentMonth = getCurrentMonth();
   const getAccount = useCallback((id) => data.accounts.find(a => a.id === id), [data.accounts]);
 
-  const filtered = data.bills.filter(b => {
+  // Filter by month first, then by status
+  const monthBills = data.bills.filter(b => b.dueDate.substring(0, 7) === billsMonth);
+
+  const filtered = monthBills.filter(b => {
     if (filter === 'pending') return b.status === 'pending' && getDueDiff(b.dueDate) >= 0;
     if (filter === 'overdue') return b.status === 'pending' && getDueDiff(b.dueDate) < 0;
     if (filter === 'paid')    return b.status === 'paid';
     return true;
   });
 
-  // Summary counts
-  const pending  = data.bills.filter(b => b.status === 'pending' && getDueDiff(b.dueDate) >= 0);
-  const overdue  = data.bills.filter(b => b.status === 'pending' && getDueDiff(b.dueDate) < 0);
-  const paid     = data.bills.filter(b => b.status === 'paid');
+  // Summary counts (for selected month)
+  const pending  = monthBills.filter(b => b.status === 'pending' && getDueDiff(b.dueDate) >= 0);
+  const overdue  = monthBills.filter(b => b.status === 'pending' && getDueDiff(b.dueDate) < 0);
+  const paid     = monthBills.filter(b => b.status === 'paid');
   const totalPending = pending.reduce((s, b) => s + b.amount, 0);
   const totalOverdue = overdue.reduce((s, b) => s + b.amount, 0);
 
@@ -124,6 +129,22 @@ export default function Bills() {
 
   return (
     <div className="space-y-5">
+      {/* Migration banner */}
+      {!billsTableExists && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40
+                        rounded-3xl p-4 flex gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Configuração necessária</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              A tabela de contas a pagar ainda não foi criada. Execute o arquivo
+              <code className="mx-1 px-1 bg-amber-100 dark:bg-amber-900/40 rounded font-mono">supabase/migrations/002_bills_table.sql</code>
+              no SQL Editor do Supabase para ativar esta funcionalidade.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -134,14 +155,33 @@ export default function Bills() {
               : `${pending.length} conta${pending.length !== 1 ? 's' : ''} a vencer`}
           </p>
         </div>
-        <button
-          onClick={() => { setEditingBill(null); setModalOpen(true); }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
-                     text-white rounded-2xl font-medium transition-colors shadow-lg
-                     shadow-violet-200 dark:shadow-violet-900/40 text-sm"
-        >
-          <Plus className="w-4 h-4" /> Nova Conta
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Month navigator */}
+          <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200
+                          dark:border-gray-700 rounded-2xl px-2 py-1.5">
+            <button onClick={() => setBillsMonth(getPrevMonth(billsMonth))}
+              className="w-7 h-7 rounded-xl flex items-center justify-center
+                         hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              <ChevronLeft className="w-4 h-4 text-gray-500" />
+            </button>
+            <span className="text-sm font-medium text-gray-900 dark:text-white w-28 text-center capitalize">
+              {getMonthLabel(billsMonth)}
+            </span>
+            <button onClick={() => setBillsMonth(getNextMonth(billsMonth))}
+              disabled={billsMonth >= currentMonth}
+              className="w-7 h-7 rounded-xl flex items-center justify-center
+                         hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors
+                         disabled:opacity-30 disabled:cursor-not-allowed">
+              <ChevronRight className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+          <button onClick={() => { setEditingBill(null); setModalOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
+                       text-white rounded-2xl font-medium transition-colors shadow-lg
+                       shadow-violet-200 dark:shadow-violet-900/40 text-sm">
+            <Plus className="w-4 h-4" /> Nova Conta
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}

@@ -14,7 +14,7 @@ const PAYMENT_METHODS = ['Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Di
 
 // ── Mappers Supabase → App ────────────────────────────────────────────────────
 const mapAccount     = (r) => ({ id: r.id, name: r.name, balance: parseFloat(r.balance), color: r.color });
-const mapTransaction = (r) => ({ id: r.id, type: r.type, description: r.description, amount: parseFloat(r.amount), date: r.date, category: r.category, accountId: r.account_id, paymentMethod: r.payment_method, notes: r.notes || '', isRecurring: r.is_recurring || false, recurrenceInterval: r.recurrence_interval || 'monthly', createdAt: r.created_at });
+const mapTransaction = (r) => ({ id: r.id, type: r.type, description: r.description, amount: parseFloat(r.amount), date: r.date, category: r.category, accountId: r.account_id, paymentMethod: r.payment_method, notes: r.notes || '', isRecurring: r.is_recurring || false, recurrenceInterval: r.recurrence_interval || 'monthly', fileUrl: r.file_url || null, fileName: r.file_name || null, createdAt: r.created_at });
 const mapBudget      = (r) => ({ id: r.id, category: r.category, limit: parseFloat(r.limit) });
 const mapGoal        = (r) => ({ id: r.id, name: r.name, target: parseFloat(r.target), current: parseFloat(r.current), category: r.category, color: r.color, deadline: r.deadline || '' });
 const mapBill        = (r) => ({ id: r.id, name: r.name, description: r.description || '', amount: parseFloat(r.amount), dueDate: r.due_date, paymentMethod: r.payment_method || 'Pix', accountId: r.account_id, pixKey: r.pix_key || '', category: r.category || 'Outros', status: r.status || 'pending', paidAt: r.paid_at || null, fileUrl: r.file_url || null, fileName: r.file_name || null, createdAt: r.created_at });
@@ -24,6 +24,7 @@ export function AppProvider({ user, children }) {
     accounts: [], transactions: [], budgets: [], goals: [], bills: [], categories: DEFAULT_CATEGORIES,
   });
   const [loading, setLoading] = useState(true);
+  const [billsTableExists, setBillsTableExists] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentMonth());
   const [theme, setTheme] = useState(() => {
     const stored = localStorage.getItem('nosso_controle_theme');
@@ -44,7 +45,7 @@ export function AppProvider({ user, children }) {
       { data: budgets },
       { data: goals },
       { data: settings },
-      { data: bills },
+      { data: bills, error: billsError },
     ] = await Promise.all([
       supabase.from('accounts').select('*').eq('user_id', uid).order('created_at'),
       supabase.from('transactions').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
@@ -53,6 +54,9 @@ export function AppProvider({ user, children }) {
       supabase.from('user_settings').select('*').eq('user_id', uid).maybeSingle(),
       supabase.from('bills').select('*').eq('user_id', uid).order('due_date'),
     ]);
+
+    if (billsError?.code === '42P01') setBillsTableExists(false);
+    else setBillsTableExists(true);
 
     if (!accounts?.length) {
       const { data: newAccounts } = await supabase.from('accounts').insert([
@@ -101,8 +105,24 @@ export function AppProvider({ user, children }) {
   const monthlyExpenses    = selectedMonthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const monthlyInvestments = selectedMonthTxs.filter(t => t.type === 'investment').reduce((s, t) => s + t.amount, 0);
 
+  // ── Shared file upload ────────────────────────────────────────────────────
+  const uploadAttachment = useCallback(async (file, folder) => {
+    if (!file) return { url: null, name: null };
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${folder}/${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from('attachments').upload(path, file, { upsert: false });
+      if (error) return { url: null, name: file.name };
+      const { data: { publicUrl } } = supabase.storage.from('attachments').getPublicUrl(path);
+      return { url: publicUrl, name: file.name };
+    } catch {
+      return { url: null, name: file.name };
+    }
+  }, [user.id]);
+
   // ── Transactions ──────────────────────────────────────────────────────────
-  const addTransaction = useCallback(async (tx) => {
+  const addTransaction = useCallback(async (tx, file = null) => {
+    const { url: fileUrl, name: fileName } = await uploadAttachment(file, 'transactions');
     const insertPayload = {
       user_id: user.id, type: tx.type, description: tx.description, amount: tx.amount,
       date: tx.date, category: tx.category, account_id: tx.accountId,
@@ -110,12 +130,14 @@ export function AppProvider({ user, children }) {
       notes: tx.notes || null,
       is_recurring: tx.isRecurring || false,
       recurrence_interval: tx.recurrenceInterval || 'monthly',
+      file_url: fileUrl,
+      file_name: fileName,
     };
 
     let { data: newTx, error } = await supabase.from('transactions').insert(insertPayload).select().single();
     if (error) {
       // Fallback: try without new columns in case migration hasn't been run
-      const { notes, is_recurring, recurrence_interval, ...corePayload } = insertPayload;
+      const { notes, is_recurring, recurrence_interval, file_url, file_name, ...corePayload } = insertPayload;
       ({ data: newTx, error } = await supabase.from('transactions').insert(corePayload).select().single());
     }
     if (error) { console.error('addTransaction:', error); return; }
@@ -154,7 +176,8 @@ export function AppProvider({ user, children }) {
     }
   }, [user.id]);
 
-  const updateTransaction = useCallback(async (id, updates) => {
+  const updateTransaction = useCallback(async (id, updates, file = null) => {
+    const { url: fileUrl, name: fileName } = await uploadAttachment(file, 'transactions');
     let accountToUpdate = null;
     const goalToUpdates = [];
 
@@ -226,7 +249,7 @@ export function AppProvider({ user, children }) {
         recurrence_interval: updates.recurrenceInterval ?? old.recurrenceInterval,
       };
 
-      const updated = { ...old, ...updates, id };
+      const updated = { ...old, ...updates, id, ...(file ? { fileUrl, fileName } : {}) };
       return { ...prev, transactions: prev.transactions.map(t => t.id === id ? updated : t), accounts, goals };
     });
 
@@ -241,6 +264,7 @@ export function AppProvider({ user, children }) {
       notes: updates.notes,
       is_recurring: updates.isRecurring,
       recurrence_interval: updates.recurrenceInterval,
+      ...(file ? { file_url: fileUrl, file_name: fileName } : {}),
     };
     // Remove undefined keys
     Object.keys(dbUpdates).forEach(k => dbUpdates[k] === undefined && delete dbUpdates[k]);
@@ -260,7 +284,7 @@ export function AppProvider({ user, children }) {
     for (const gu of goalToUpdates) {
       await supabase.from('goals').update({ current: gu.current }).eq('id', gu.id);
     }
-  }, [loadUserData]);
+  }, [loadUserData, uploadAttachment]);
 
   const deleteTransaction = useCallback(async (id) => {
     let accountToUpdate = null;
@@ -419,22 +443,8 @@ export function AppProvider({ user, children }) {
   }, []);
 
   // ── Bills ─────────────────────────────────────────────────────────────────
-  const uploadBillFile = useCallback(async (file) => {
-    if (!file) return { url: null, name: null };
-    try {
-      const ext = file.name.split('.').pop();
-      const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from('bills').upload(path, file, { upsert: false });
-      if (error) return { url: null, name: file.name };
-      const { data: { publicUrl } } = supabase.storage.from('bills').getPublicUrl(path);
-      return { url: publicUrl, name: file.name };
-    } catch {
-      return { url: null, name: file.name };
-    }
-  }, [user.id]);
-
   const addBill = useCallback(async (bill, file) => {
-    const { url: fileUrl, name: fileName } = await uploadBillFile(file);
+    const { url: fileUrl, name: fileName } = await uploadAttachment(file, 'bills');
     const { data: newBill, error } = await supabase.from('bills').insert({
       user_id: user.id,
       name: bill.name,
@@ -449,14 +459,15 @@ export function AppProvider({ user, children }) {
       file_url: fileUrl,
       file_name: fileName,
     }).select().single();
-    if (error) { console.error('addBill:', error); return; }
+    if (error) { console.error('addBill:', error); return false; }
     setData(prev => ({ ...prev, bills: [...prev.bills, mapBill(newBill)].sort((a, b) => a.dueDate.localeCompare(b.dueDate)) }));
-  }, [user.id, uploadBillFile]);
+    return true;
+  }, [user.id, uploadAttachment]);
 
   const updateBill = useCallback(async (id, bill, file) => {
     let fileUrl, fileName;
     if (file) {
-      ({ url: fileUrl, name: fileName } = await uploadBillFile(file));
+      ({ url: fileUrl, name: fileName } = await uploadAttachment(file, 'bills'));
     }
     const dbUpdates = {
       name: bill.name,
@@ -475,7 +486,7 @@ export function AppProvider({ user, children }) {
       ...prev,
       bills: prev.bills.map(b => b.id === id ? { ...b, ...bill, ...(file ? { fileUrl, fileName } : {}) } : b),
     }));
-  }, [uploadBillFile]);
+  }, [uploadAttachment]);
 
   const deleteBill = useCallback(async (id) => {
     const { error } = await supabase.from('bills').delete().eq('id', id);
@@ -558,6 +569,7 @@ export function AppProvider({ user, children }) {
     addGoal, updateGoal, deleteGoal,
     addCategory,
     addBill, updateBill, deleteBill, payBill,
+    billsTableExists,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

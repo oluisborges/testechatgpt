@@ -15,7 +15,7 @@ const PAGE_TITLES = {
   dashboard:    'Dashboard',
   transactions: 'Transações',
   bills:        'Contas a Pagar',
-  accounts:     'Contas',
+  accounts:     'Contas Bancárias',
   budgets:      'Orçamentos',
   goals:        'Metas',
   annual:       'Resumo Anual',
