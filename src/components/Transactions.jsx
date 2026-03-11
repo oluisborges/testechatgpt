@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Search, Filter } from 'lucide-react';
+import { Plus, Trash2, Search, Filter, Pencil, RefreshCw, FileText } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate, getTransactionMonth } from '../utils/formatters';
 import TransactionModal from './TransactionModal';
@@ -13,10 +13,13 @@ const TYPE_STYLES = {
   investment: 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400',
 };
 
+const RECURRENCE_LABELS = { weekly: 'Semanal', monthly: 'Mensal', yearly: 'Anual' };
+
 export default function Transactions() {
   const { data, deleteTransaction, selectedMonth } = useApp();
 
   const [txModalOpen, setTxModalOpen] = useState(false);
+  const [editingTx, setEditingTx] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
@@ -27,7 +30,8 @@ export default function Transactions() {
       const matchType = filterType === 'all' || tx.type === filterType;
       const matchSearch = !search ||
         tx.description.toLowerCase().includes(search.toLowerCase()) ||
-        (tx.category || '').toLowerCase().includes(search.toLowerCase());
+        (tx.category || '').toLowerCase().includes(search.toLowerCase()) ||
+        (tx.notes || '').toLowerCase().includes(search.toLowerCase());
       return matchMonth && matchType && matchSearch;
     })
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -37,6 +41,16 @@ export default function Transactions() {
       deleteTransaction(confirmId);
       setConfirmId(null);
     }
+  };
+
+  const openEdit = (tx) => {
+    setEditingTx(tx);
+    setTxModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setTxModalOpen(false);
+    setEditingTx(null);
   };
 
   const getAccount = (id) => data.accounts.find(a => a.id === id);
@@ -54,7 +68,7 @@ export default function Transactions() {
         <div className="flex items-center gap-3">
           <MonthFilter />
           <button
-            onClick={() => setTxModalOpen(true)}
+            onClick={() => { setEditingTx(null); setTxModalOpen(true); }}
             className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
                        text-white rounded-2xl font-medium transition-colors shadow-lg
                        shadow-violet-200 dark:shadow-violet-900/40 text-sm"
@@ -71,7 +85,7 @@ export default function Transactions() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Buscar por descrição ou categoria..."
+            placeholder="Buscar por descrição, categoria ou nota..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
@@ -106,7 +120,7 @@ export default function Transactions() {
             </p>
             {!search && filterType === 'all' && (
               <button
-                onClick={() => setTxModalOpen(true)}
+                onClick={() => { setEditingTx(null); setTxModalOpen(true); }}
                 className="mt-3 text-sm text-violet-600 dark:text-violet-400 font-medium hover:underline"
               >
                 Adicionar lançamento
@@ -128,14 +142,31 @@ export default function Transactions() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                      {tx.description}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                        {tx.description}
+                      </p>
+                      {tx.isRecurring && (
+                        <span title={`Recorrente · ${RECURRENCE_LABELS[tx.recurrenceInterval] || 'Mensal'}`}>
+                          <RefreshCw className="w-3 h-3 text-violet-400 shrink-0" />
+                        </span>
+                      )}
+                      {tx.notes && (
+                        <span title={tx.notes}>
+                          <FileText className="w-3 h-3 text-gray-400 shrink-0" />
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                       {tx.category || '—'}
                       {account && ` · ${account.name}`}
                       {tx.paymentMethod && ` · ${tx.paymentMethod}`}
                     </p>
+                    {tx.notes && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 italic truncate">
+                        {tx.notes}
+                      </p>
+                    )}
                   </div>
 
                   <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0 hidden sm:block">
@@ -149,14 +180,24 @@ export default function Transactions() {
                     {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
                   </span>
 
-                  <button
-                    onClick={() => setConfirmId(tx.id)}
-                    className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center
-                               opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20
-                               text-gray-400 hover:text-red-500 transition-all"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <button
+                      onClick={() => openEdit(tx)}
+                      className="w-8 h-8 rounded-xl flex items-center justify-center
+                                 hover:bg-blue-50 dark:hover:bg-blue-900/20
+                                 text-gray-400 hover:text-blue-500 transition-all"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setConfirmId(tx.id)}
+                      className="w-8 h-8 rounded-xl flex items-center justify-center
+                                 hover:bg-red-50 dark:hover:bg-red-900/20
+                                 text-gray-400 hover:text-red-500 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -164,7 +205,7 @@ export default function Transactions() {
         )}
       </div>
 
-      <TransactionModal isOpen={txModalOpen} onClose={() => setTxModalOpen(false)} />
+      <TransactionModal isOpen={txModalOpen} onClose={closeModal} transaction={editingTx} />
 
       <ConfirmModal
         isOpen={!!confirmId}

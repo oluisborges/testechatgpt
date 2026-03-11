@@ -7,12 +7,14 @@ import Dashboard from './components/Dashboard';
 import Transactions from './components/Transactions';
 import Budgets from './components/Budgets';
 import Goals from './components/Goals';
+import AnnualSummary from './components/AnnualSummary';
 
 const PAGE_TITLES = {
   dashboard: 'Dashboard',
   transactions: 'Transações',
   budgets: 'Orçamentos',
   goals: 'Metas',
+  annual: 'Resumo Anual',
 };
 
 function AppInner() {
@@ -36,6 +38,7 @@ function AppInner() {
       case 'transactions': return <Transactions />;
       case 'budgets':      return <Budgets />;
       case 'goals':        return <Goals />;
+      case 'annual':       return <AnnualSummary />;
       default:             return <Dashboard />;
     }
   };

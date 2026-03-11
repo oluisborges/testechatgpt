@@ -14,7 +14,7 @@ const PAYMENT_METHODS = ['Pix', 'Cartão de Débito', 'Cartão de Crédito', 'Di
 
 // ── Mappers Supabase → App ────────────────────────────────────────────────────
 const mapAccount     = (r) => ({ id: r.id, name: r.name, balance: parseFloat(r.balance), color: r.color });
-const mapTransaction = (r) => ({ id: r.id, type: r.type, description: r.description, amount: parseFloat(r.amount), date: r.date, category: r.category, accountId: r.account_id, paymentMethod: r.payment_method, createdAt: r.created_at });
+const mapTransaction = (r) => ({ id: r.id, type: r.type, description: r.description, amount: parseFloat(r.amount), date: r.date, category: r.category, accountId: r.account_id, paymentMethod: r.payment_method, notes: r.notes || '', isRecurring: r.is_recurring || false, recurrenceInterval: r.recurrence_interval || 'monthly', createdAt: r.created_at });
 const mapBudget      = (r) => ({ id: r.id, category: r.category, limit: parseFloat(r.limit) });
 const mapGoal        = (r) => ({ id: r.id, name: r.name, target: parseFloat(r.target), current: parseFloat(r.current), category: r.category, color: r.color, deadline: r.deadline || '' });
 
@@ -139,6 +139,109 @@ export function AppProvider({ user, children }) {
     }
   }, [user.id]);
 
+  const updateTransaction = useCallback(async (id, updates) => {
+    let accountToUpdate = null;
+    const goalToUpdates = [];
+
+    setData(prev => {
+      const old = prev.transactions.find(t => t.id === id);
+      if (!old) return prev;
+
+      // Revert old effect on account balance
+      const oldDelta = old.type === 'income' ? -old.amount : old.amount;
+      // Apply new effect on account balance
+      const newAmount = updates.amount ?? old.amount;
+      const newType = updates.type ?? old.type;
+      const newAccountId = updates.accountId ?? old.accountId;
+      const newDelta = newType === 'income' ? newAmount : -newAmount;
+
+      let accounts = prev.accounts;
+      // If account changed, revert old account and apply to new account
+      if (newAccountId !== old.accountId) {
+        const oldAcc = prev.accounts.find(a => a.id === old.accountId);
+        const newAcc = prev.accounts.find(a => a.id === newAccountId);
+        const oldAccBalance = (oldAcc?.balance || 0) + oldDelta;
+        const newAccBalance = (newAcc?.balance || 0) + newDelta;
+        if (oldAcc) accountToUpdate = [{ id: old.accountId, balance: oldAccBalance }, { id: newAccountId, balance: newAccBalance }];
+        accounts = prev.accounts.map(a => {
+          if (a.id === old.accountId) return { ...a, balance: oldAccBalance };
+          if (a.id === newAccountId) return { ...a, balance: newAccBalance };
+          return a;
+        });
+      } else {
+        const acc = prev.accounts.find(a => a.id === old.accountId);
+        const newBalance = (acc?.balance || 0) + oldDelta + newDelta;
+        if (acc) accountToUpdate = [{ id: old.accountId, balance: newBalance }];
+        accounts = prev.accounts.map(a => a.id === old.accountId ? { ...a, balance: newBalance } : a);
+      }
+
+      // Handle goal updates for investment type changes
+      let goals = prev.goals;
+      const oldCategory = old.category;
+      const newCategory = updates.category ?? old.category;
+      if (old.type === 'investment') {
+        goals = goals.map(g => {
+          if (g.category !== oldCategory) return g;
+          const reverted = Math.max(0, g.current - old.amount);
+          goalToUpdates.push({ id: g.id, current: reverted });
+          return { ...g, current: reverted };
+        });
+      }
+      if (newType === 'investment') {
+        goals = goals.map(g => {
+          if (g.category !== newCategory) return g;
+          const existing = goalToUpdates.find(x => x.id === g.id);
+          const base = existing ? existing.current : g.current;
+          const updated = Math.min(g.target, base + newAmount);
+          if (existing) existing.current = updated; else goalToUpdates.push({ id: g.id, current: updated });
+          return { ...g, current: updated };
+        });
+      }
+
+      const dbUpdates = {
+        type: newType,
+        description: updates.description ?? old.description,
+        amount: newAmount,
+        date: updates.date ?? old.date,
+        category: newCategory,
+        account_id: newAccountId,
+        payment_method: updates.paymentMethod ?? old.paymentMethod,
+        notes: updates.notes ?? old.notes,
+        is_recurring: updates.isRecurring ?? old.isRecurring,
+        recurrence_interval: updates.recurrenceInterval ?? old.recurrenceInterval,
+      };
+
+      const updated = { ...old, ...updates, id };
+      return { ...prev, transactions: prev.transactions.map(t => t.id === id ? updated : t), accounts, goals };
+    });
+
+    const dbUpdates = {
+      type: updates.type,
+      description: updates.description,
+      amount: updates.amount,
+      date: updates.date,
+      category: updates.category,
+      account_id: updates.accountId,
+      payment_method: updates.paymentMethod,
+      notes: updates.notes,
+      is_recurring: updates.isRecurring,
+      recurrence_interval: updates.recurrenceInterval,
+    };
+    // Remove undefined keys
+    Object.keys(dbUpdates).forEach(k => dbUpdates[k] === undefined && delete dbUpdates[k]);
+
+    const { error } = await supabase.from('transactions').update(dbUpdates).eq('id', id);
+    if (error) { console.error('updateTransaction:', error); loadUserData(); return; }
+    if (accountToUpdate) {
+      for (const acc of accountToUpdate) {
+        await supabase.from('accounts').update({ balance: acc.balance }).eq('id', acc.id);
+      }
+    }
+    for (const gu of goalToUpdates) {
+      await supabase.from('goals').update({ current: gu.current }).eq('id', gu.id);
+    }
+  }, [loadUserData]);
+
   const deleteTransaction = useCallback(async (id) => {
     let accountToUpdate = null;
     const goalToUpdates = [];
@@ -200,6 +303,15 @@ export function AppProvider({ user, children }) {
       accounts: prev.accounts.filter(a => a.id !== id),
       transactions: prev.transactions.map(t => t.accountId === id ? { ...t, accountId: null } : t),
     }));
+  }, []);
+
+  const updateAccount = useCallback(async (id, updates) => {
+    const dbUpdates = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.color !== undefined) dbUpdates.color = updates.color;
+    const { error } = await supabase.from('accounts').update(dbUpdates).eq('id', id);
+    if (error) { console.error('updateAccount:', error); return; }
+    setData(prev => ({ ...prev, accounts: prev.accounts.map(a => a.id === id ? { ...a, ...updates } : a) }));
   }, []);
 
   // ── Budgets ───────────────────────────────────────────────────────────────
@@ -307,8 +419,8 @@ export function AppProvider({ user, children }) {
     monthlyIncome, monthlyExpenses, monthlyInvestments,
     PAYMENT_METHODS,
     toggleTheme, setActivePage, setSidebarOpen,
-    addTransaction, deleteTransaction,
-    addAccount, deleteAccount,
+    addTransaction, updateTransaction, deleteTransaction,
+    addAccount, updateAccount, deleteAccount,
     addBudget, deleteBudget, getBudgetSpent,
     addGoal, updateGoal, deleteGoal,
     addCategory,
