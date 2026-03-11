@@ -1,0 +1,19 @@
+name: Supabase Keep Alive
+
+on:
+  schedule:
+    - cron: '0 8 */5 * *'  # every 5 days at 08:00 UTC
+  workflow_dispatch:        # allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.VITE_SUPABASE_URL }}/rest/v1/accounts?limit=1" \
+            -H "apikey: ${{ secrets.VITE_SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.VITE_SUPABASE_ANON_KEY }}")
+          echo "Response: $STATUS"
+          [ "$STATUS" = "200" ] || [ "$STATUS" = "401" ] && echo "Supabase is alive" || exit 1
