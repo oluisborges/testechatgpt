@@ -163,14 +163,19 @@ export function AppProvider({ user, children }) {
       return { ...prev, transactions: prev.transactions.filter(t => t.id !== id), accounts, goals };
     });
 
-    await supabase.from('transactions').delete().eq('id', id);
+    const { error } = await supabase.from('transactions').delete().eq('id', id);
+    if (error) {
+      console.error('deleteTransaction failed:', error);
+      loadUserData();
+      return;
+    }
     if (accountToUpdate) {
       await supabase.from('accounts').update({ balance: accountToUpdate.balance }).eq('id', accountToUpdate.id);
     }
     for (const gu of goalToUpdates) {
       await supabase.from('goals').update({ current: gu.current }).eq('id', gu.id);
     }
-  }, []);
+  }, [loadUserData]);
 
   // ── Accounts ──────────────────────────────────────────────────────────────
   const addAccount = useCallback(async (account) => {
