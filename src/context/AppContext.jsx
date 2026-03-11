@@ -17,10 +17,11 @@ const mapAccount     = (r) => ({ id: r.id, name: r.name, balance: parseFloat(r.b
 const mapTransaction = (r) => ({ id: r.id, type: r.type, description: r.description, amount: parseFloat(r.amount), date: r.date, category: r.category, accountId: r.account_id, paymentMethod: r.payment_method, notes: r.notes || '', isRecurring: r.is_recurring || false, recurrenceInterval: r.recurrence_interval || 'monthly', createdAt: r.created_at });
 const mapBudget      = (r) => ({ id: r.id, category: r.category, limit: parseFloat(r.limit) });
 const mapGoal        = (r) => ({ id: r.id, name: r.name, target: parseFloat(r.target), current: parseFloat(r.current), category: r.category, color: r.color, deadline: r.deadline || '' });
+const mapBill        = (r) => ({ id: r.id, name: r.name, description: r.description || '', amount: parseFloat(r.amount), dueDate: r.due_date, paymentMethod: r.payment_method || 'Pix', accountId: r.account_id, pixKey: r.pix_key || '', category: r.category || 'Outros', status: r.status || 'pending', paidAt: r.paid_at || null, fileUrl: r.file_url || null, fileName: r.file_name || null, createdAt: r.created_at });
 
 export function AppProvider({ user, children }) {
   const [data, setData] = useState({
-    accounts: [], transactions: [], budgets: [], goals: [], categories: DEFAULT_CATEGORIES,
+    accounts: [], transactions: [], budgets: [], goals: [], bills: [], categories: DEFAULT_CATEGORIES,
   });
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentMonth());
@@ -43,12 +44,14 @@ export function AppProvider({ user, children }) {
       { data: budgets },
       { data: goals },
       { data: settings },
+      { data: bills },
     ] = await Promise.all([
       supabase.from('accounts').select('*').eq('user_id', uid).order('created_at'),
       supabase.from('transactions').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
       supabase.from('budgets').select('*').eq('user_id', uid),
       supabase.from('goals').select('*').eq('user_id', uid),
       supabase.from('user_settings').select('*').eq('user_id', uid).maybeSingle(),
+      supabase.from('bills').select('*').eq('user_id', uid).order('due_date'),
     ]);
 
     if (!accounts?.length) {
@@ -57,13 +60,14 @@ export function AppProvider({ user, children }) {
         { user_id: uid, name: 'Carteira',        balance: 0, color: '#10b981' },
       ]).select();
       await supabase.from('user_settings').upsert({ user_id: uid, categories: DEFAULT_CATEGORIES });
-      setData({ accounts: (newAccounts || []).map(mapAccount), transactions: [], budgets: [], goals: [], categories: DEFAULT_CATEGORIES });
+      setData({ accounts: (newAccounts || []).map(mapAccount), transactions: [], budgets: [], goals: [], bills: [], categories: DEFAULT_CATEGORIES });
     } else {
       setData({
         accounts:     (accounts     || []).map(mapAccount),
         transactions: (transactions || []).map(mapTransaction),
         budgets:      (budgets      || []).map(mapBudget),
         goals:        (goals        || []).map(mapGoal),
+        bills:        (bills        || []).map(mapBill),
         categories:   settings?.categories || DEFAULT_CATEGORIES,
       });
     }
@@ -414,6 +418,119 @@ export function AppProvider({ user, children }) {
     });
   }, []);
 
+  // ── Bills ─────────────────────────────────────────────────────────────────
+  const uploadBillFile = useCallback(async (file) => {
+    if (!file) return { url: null, name: null };
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from('bills').upload(path, file, { upsert: false });
+      if (error) return { url: null, name: file.name };
+      const { data: { publicUrl } } = supabase.storage.from('bills').getPublicUrl(path);
+      return { url: publicUrl, name: file.name };
+    } catch {
+      return { url: null, name: file.name };
+    }
+  }, [user.id]);
+
+  const addBill = useCallback(async (bill, file) => {
+    const { url: fileUrl, name: fileName } = await uploadBillFile(file);
+    const { data: newBill, error } = await supabase.from('bills').insert({
+      user_id: user.id,
+      name: bill.name,
+      description: bill.description || null,
+      amount: bill.amount,
+      due_date: bill.dueDate,
+      payment_method: bill.paymentMethod,
+      account_id: bill.accountId || null,
+      pix_key: bill.pixKey || null,
+      category: bill.category,
+      status: 'pending',
+      file_url: fileUrl,
+      file_name: fileName,
+    }).select().single();
+    if (error) { console.error('addBill:', error); return; }
+    setData(prev => ({ ...prev, bills: [...prev.bills, mapBill(newBill)].sort((a, b) => a.dueDate.localeCompare(b.dueDate)) }));
+  }, [user.id, uploadBillFile]);
+
+  const updateBill = useCallback(async (id, bill, file) => {
+    let fileUrl, fileName;
+    if (file) {
+      ({ url: fileUrl, name: fileName } = await uploadBillFile(file));
+    }
+    const dbUpdates = {
+      name: bill.name,
+      description: bill.description || null,
+      amount: bill.amount,
+      due_date: bill.dueDate,
+      payment_method: bill.paymentMethod,
+      account_id: bill.accountId || null,
+      pix_key: bill.pixKey || null,
+      category: bill.category,
+    };
+    if (file) { dbUpdates.file_url = fileUrl; dbUpdates.file_name = fileName; }
+    const { error } = await supabase.from('bills').update(dbUpdates).eq('id', id);
+    if (error) { console.error('updateBill:', error); return; }
+    setData(prev => ({
+      ...prev,
+      bills: prev.bills.map(b => b.id === id ? { ...b, ...bill, ...(file ? { fileUrl, fileName } : {}) } : b),
+    }));
+  }, [uploadBillFile]);
+
+  const deleteBill = useCallback(async (id) => {
+    const { error } = await supabase.from('bills').delete().eq('id', id);
+    if (error) { console.error('deleteBill:', error); return; }
+    setData(prev => ({ ...prev, bills: prev.bills.filter(b => b.id !== id) }));
+  }, []);
+
+  const payBill = useCallback(async (id) => {
+    let accountToUpdate = null;
+    const bill = data.bills.find(b => b.id === id);
+    if (!bill) return;
+
+    const today = new Date().toISOString().split('T')[0];
+
+    // Insert transaction
+    const insertPayload = {
+      user_id: user.id,
+      type: 'expense',
+      description: bill.name,
+      amount: bill.amount,
+      date: today,
+      category: bill.category,
+      account_id: bill.accountId || null,
+      payment_method: bill.paymentMethod,
+      notes: bill.description || null,
+    };
+    let { data: newTx, error: txError } = await supabase.from('transactions').insert(insertPayload).select().single();
+    if (txError) {
+      const { notes, ...corePay } = insertPayload;
+      ({ data: newTx, error: txError } = await supabase.from('transactions').insert(corePay).select().single());
+    }
+    if (txError) { console.error('payBill - transaction:', txError); return; }
+
+    // Mark bill as paid
+    const { error: billError } = await supabase.from('bills')
+      .update({ status: 'paid', paid_at: new Date().toISOString() }).eq('id', id);
+    if (billError) { console.error('payBill - bill update:', billError); return; }
+
+    setData(prev => {
+      const account = prev.accounts.find(a => a.id === bill.accountId);
+      const newBalance = (account?.balance || 0) - bill.amount;
+      if (account) accountToUpdate = { id: bill.accountId, balance: newBalance };
+      return {
+        ...prev,
+        bills: prev.bills.map(b => b.id === id ? { ...b, status: 'paid', paidAt: new Date().toISOString() } : b),
+        transactions: [mapTransaction(newTx), ...prev.transactions],
+        accounts: prev.accounts.map(a => a.id === bill.accountId ? { ...a, balance: newBalance } : a),
+      };
+    });
+
+    if (accountToUpdate) {
+      await supabase.from('accounts').update({ balance: accountToUpdate.balance }).eq('id', accountToUpdate.id);
+    }
+  }, [data.bills, user.id]);
+
   // ── Categories ────────────────────────────────────────────────────────────
   const addCategory = useCallback(async (type, name) => {
     let newCategories = null;
@@ -440,6 +557,7 @@ export function AppProvider({ user, children }) {
     addBudget, deleteBudget, getBudgetSpent,
     addGoal, updateGoal, deleteGoal,
     addCategory,
+    addBill, updateBill, deleteBill, payBill,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

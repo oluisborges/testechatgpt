@@ -1,20 +1,28 @@
-import { LayoutDashboard, ArrowLeftRight, Target, PiggyBank, X, TrendingUp, Wallet, CalendarDays, CreditCard } from 'lucide-react';
+import { LayoutDashboard, ArrowLeftRight, Target, PiggyBank, X, TrendingUp, Wallet, CalendarDays, CreditCard, Receipt } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../utils/formatters';
 
+function getDueDiff(dueDate) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return Math.round((new Date(dueDate + 'T00:00:00') - today) / 86400000);
+}
+
 const NAV_ITEMS = [
-  { id: 'dashboard',    label: 'Dashboard',      icon: LayoutDashboard },
-  { id: 'transactions', label: 'Transações',      icon: ArrowLeftRight },
-  { id: 'accounts',     label: 'Contas',          icon: CreditCard },
-  { id: 'budgets',      label: 'Orçamentos',      icon: PiggyBank },
-  { id: 'goals',        label: 'Metas',           icon: Target },
-  { id: 'annual',       label: 'Resumo Anual',    icon: CalendarDays },
+  { id: 'dashboard',    label: 'Dashboard',       icon: LayoutDashboard },
+  { id: 'transactions', label: 'Transações',       icon: ArrowLeftRight },
+  { id: 'bills',        label: 'Contas a Pagar',   icon: Receipt },
+  { id: 'accounts',     label: 'Contas',           icon: CreditCard },
+  { id: 'budgets',      label: 'Orçamentos',       icon: PiggyBank },
+  { id: 'goals',        label: 'Metas',            icon: Target },
+  { id: 'annual',       label: 'Resumo Anual',     icon: CalendarDays },
 ];
 
 export default function Sidebar() {
-  const { activePage, setActivePage, sidebarOpen, setSidebarOpen, totalBalance, totalInvested } = useApp();
+  const { activePage, setActivePage, sidebarOpen, setSidebarOpen, totalBalance, totalInvested, data } = useApp();
   const { user } = useAuth();
+
+  const urgentBills = (data.bills || []).filter(b => b.status === 'pending' && getDueDiff(b.dueDate) < 0).length;
 
   const navigate = (page) => {
     setActivePage(page);
@@ -104,9 +112,14 @@ export default function Sidebar() {
                   <Icon className={`w-4 h-4 ${active ? 'text-white' : 'text-gray-500 dark:text-gray-400'}`} />
                 </div>
                 {label}
-                {active && (
-                  <div className="ml-auto w-1.5 h-1.5 rounded-full bg-violet-600 dark:bg-violet-400" />
-                )}
+                <span className="ml-auto flex items-center gap-1">
+                  {id === 'bills' && urgentBills > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white min-w-5 text-center">
+                      {urgentBills}
+                    </span>
+                  )}
+                  {active && <div className="w-1.5 h-1.5 rounded-full bg-violet-600 dark:bg-violet-400" />}
+                </span>
               </button>
             );
           })}

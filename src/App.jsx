@@ -9,14 +9,16 @@ import Budgets from './components/Budgets';
 import Goals from './components/Goals';
 import AnnualSummary from './components/AnnualSummary';
 import Accounts from './components/Accounts';
+import Bills from './components/Bills';
 
 const PAGE_TITLES = {
-  dashboard: 'Dashboard',
+  dashboard:    'Dashboard',
   transactions: 'Transações',
-  accounts: 'Contas',
-  budgets: 'Orçamentos',
-  goals: 'Metas',
-  annual: 'Resumo Anual',
+  bills:        'Contas a Pagar',
+  accounts:     'Contas',
+  budgets:      'Orçamentos',
+  goals:        'Metas',
+  annual:       'Resumo Anual',
 };
 
 function AppInner() {
@@ -38,6 +40,7 @@ function AppInner() {
     switch (activePage) {
       case 'dashboard':    return <Dashboard />;
       case 'transactions': return <Transactions />;
+      case 'bills':        return <Bills />;
       case 'accounts':     return <Accounts />;
       case 'budgets':      return <Budgets />;
       case 'goals':        return <Goals />;
