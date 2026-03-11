@@ -100,53 +100,76 @@ export function AppProvider({ user, children }) {
 
     let delta = tx.type === 'income' ? tx.amount : -tx.amount;
 
+    let accountToUpdate = null;
+    let goalToUpdates = [];
+
     setData(prev => {
       const account = prev.accounts.find(a => a.id === tx.accountId);
+      const newBalance = (account?.balance || 0) + delta;
+      if (account) accountToUpdate = { id: tx.accountId, balance: newBalance };
+
       const accounts = prev.accounts.map(a =>
-        a.id === tx.accountId ? { ...a, balance: a.balance + delta } : a
+        a.id === tx.accountId ? { ...a, balance: newBalance } : a
       );
-      if (account) supabase.from('accounts').update({ balance: account.balance + delta }).eq('id', tx.accountId);
 
       let goals = prev.goals;
       if (tx.type === 'investment') {
         goals = prev.goals.map(g => {
           if (g.category !== tx.category) return g;
           const newCurrent = Math.min(g.target, g.current + tx.amount);
-          supabase.from('goals').update({ current: newCurrent }).eq('id', g.id);
+          goalToUpdates.push({ id: g.id, current: newCurrent });
           return { ...g, current: newCurrent };
         });
       }
 
       return { ...prev, transactions: [mapTransaction(newTx), ...prev.transactions], accounts, goals };
     });
+
+    if (accountToUpdate) {
+      await supabase.from('accounts').update({ balance: accountToUpdate.balance }).eq('id', accountToUpdate.id);
+    }
+    for (const gu of goalToUpdates) {
+      await supabase.from('goals').update({ current: gu.current }).eq('id', gu.id);
+    }
   }, [user.id]);
 
   const deleteTransaction = useCallback(async (id) => {
+    let accountToUpdate = null;
+    let goalToUpdates = [];
+
     setData(prev => {
       const tx = prev.transactions.find(t => t.id === id);
       if (!tx) return prev;
 
-      supabase.from('transactions').delete().eq('id', id);
-
       let delta = tx.type === 'income' ? -tx.amount : tx.amount;
       const account = prev.accounts.find(a => a.id === tx.accountId);
+      const newBalance = (account?.balance || 0) + delta;
+      if (account) accountToUpdate = { id: tx.accountId, balance: newBalance };
+
       const accounts = prev.accounts.map(a =>
-        a.id === tx.accountId ? { ...a, balance: a.balance + delta } : a
+        a.id === tx.accountId ? { ...a, balance: newBalance } : a
       );
-      if (account) supabase.from('accounts').update({ balance: account.balance + delta }).eq('id', tx.accountId);
 
       let goals = prev.goals;
       if (tx.type === 'investment') {
         goals = prev.goals.map(g => {
           if (g.category !== tx.category) return g;
           const newCurrent = Math.max(0, g.current - tx.amount);
-          supabase.from('goals').update({ current: newCurrent }).eq('id', g.id);
+          goalToUpdates.push({ id: g.id, current: newCurrent });
           return { ...g, current: newCurrent };
         });
       }
 
       return { ...prev, transactions: prev.transactions.filter(t => t.id !== id), accounts, goals };
     });
+
+    await supabase.from('transactions').delete().eq('id', id);
+    if (accountToUpdate) {
+      await supabase.from('accounts').update({ balance: accountToUpdate.balance }).eq('id', accountToUpdate.id);
+    }
+    for (const gu of goalToUpdates) {
+      await supabase.from('goals').update({ current: gu.current }).eq('id', gu.id);
+    }
   }, []);
 
   // ── Accounts ──────────────────────────────────────────────────────────────
