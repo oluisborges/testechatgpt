@@ -74,84 +74,86 @@ export default function Transactions() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Transações</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {filtered.length} lançamento{filtered.length !== 1 ? 's' : ''}
-            {filtered.length > PAGE_SIZE && ` · página ${safePage} de ${totalPages}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Date mode toggle + control */}
-          <div className="flex items-center gap-2">
-            <div className="flex p-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl gap-1">
-              <button
-                onClick={() => setMode('payment')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap
-                            ${dateMode === 'payment'
-                              ? 'bg-violet-600 text-white shadow-sm'
-                              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
-                Data de Pagamento
-              </button>
-              <button
-                onClick={() => setMode('created')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap
-                            ${dateMode === 'created'
-                              ? 'bg-violet-600 text-white shadow-sm'
-                              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
-                Data de Criação
-              </button>
-            </div>
-
-            {/* Month navigator — always visible */}
-            <div className="flex items-center gap-1.5">
-              <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-2 py-1.5">
-                <button onClick={() => { setSelectedMonth(getPrevMonth(selectedMonth)); setPage(1); }}
-                  className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                  <ChevronLeft className="w-4 h-4 text-gray-500" />
-                </button>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-32 text-center select-none">
-                  {getMonthLabel(selectedMonth)}
-                </span>
-                <button onClick={() => { setSelectedMonth(getNextMonth(selectedMonth)); setPage(1); }}
-                  className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                  <ChevronRight className="w-4 h-4 text-gray-500" />
-                </button>
-              </div>
-              {selectedMonth !== getCurrentMonth() && (
-                <button onClick={() => { setSelectedMonth(getCurrentMonth()); setPage(1); }}
-                  title="Voltar ao mês atual"
-                  className="w-7 h-7 flex items-center justify-center rounded-xl border border-violet-200 dark:border-violet-700
-                             bg-violet-50 dark:bg-violet-900/20 text-violet-500 dark:text-violet-400
-                             hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors">
-                  <RotateCcw className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Date picker — only in "created" mode */}
-            {dateMode === 'created' && (
-              <input
-                type="date"
-                value={createdAtFilter}
-                onChange={e => { setCreatedAtFilter(e.target.value); setPage(1); }}
-                className={`px-3 py-2 rounded-2xl border text-sm transition-all
-                            focus:outline-none focus:ring-2 focus:ring-violet-400
-                            ${createdAtFilter
-                              ? 'border-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300'
-                              : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white'}`}
-              />
-            )}
+      <div className="space-y-3">
+        {/* Row 1: title + new button */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Transações</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {filtered.length} lançamento{filtered.length !== 1 ? 's' : ''}
+              {filtered.length > PAGE_SIZE && ` · página ${safePage} de ${totalPages}`}
+            </p>
           </div>
-
           <button onClick={() => { setEditingTx(null); setTxModalOpen(true); }}
             className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
                        text-white rounded-2xl font-medium transition-colors shadow-lg
-                       shadow-violet-200 dark:shadow-violet-900/40 text-sm">
+                       shadow-violet-200 dark:shadow-violet-900/40 text-sm shrink-0">
             <Plus className="w-4 h-4" />
             <span>Novo</span>
           </button>
+        </div>
+
+        {/* Row 2: date mode + month nav + date picker — wraps on mobile */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Date mode toggle */}
+          <div className="flex p-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl gap-1">
+            <button
+              onClick={() => setMode('payment')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap
+                          ${dateMode === 'payment'
+                            ? 'bg-violet-600 text-white shadow-sm'
+                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+              <span className="hidden sm:inline">Data de </span>Pagamento
+            </button>
+            <button
+              onClick={() => setMode('created')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap
+                          ${dateMode === 'created'
+                            ? 'bg-violet-600 text-white shadow-sm'
+                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+              <span className="hidden sm:inline">Data de </span>Criação
+            </button>
+          </div>
+
+          {/* Month navigator */}
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-2 py-1.5">
+              <button onClick={() => { setSelectedMonth(getPrevMonth(selectedMonth)); setPage(1); }}
+                className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <ChevronLeft className="w-4 h-4 text-gray-500" />
+              </button>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize w-28 text-center select-none">
+                {getMonthLabel(selectedMonth)}
+              </span>
+              <button onClick={() => { setSelectedMonth(getNextMonth(selectedMonth)); setPage(1); }}
+                className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            {selectedMonth !== getCurrentMonth() && (
+              <button onClick={() => { setSelectedMonth(getCurrentMonth()); setPage(1); }}
+                title="Voltar ao mês atual"
+                className="w-7 h-7 flex items-center justify-center rounded-xl border border-violet-200 dark:border-violet-700
+                           bg-violet-50 dark:bg-violet-900/20 text-violet-500 dark:text-violet-400
+                           hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors">
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Date picker — only in "created" mode */}
+          {dateMode === 'created' && (
+            <input
+              type="date"
+              value={createdAtFilter}
+              onChange={e => { setCreatedAtFilter(e.target.value); setPage(1); }}
+              className={`px-3 py-2 rounded-2xl border text-sm transition-all
+                          focus:outline-none focus:ring-2 focus:ring-violet-400
+                          ${createdAtFilter
+                            ? 'border-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300'
+                            : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white'}`}
+            />
+          )}
         </div>
       </div>
 
