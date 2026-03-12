@@ -36,12 +36,11 @@ export default function Transactions() {
   const filtered = useMemo(() =>
     data.transactions
       .filter(tx => {
-        // Date filter
-        if (dateMode === 'payment') {
-          if (getTransactionMonth(tx.date) !== selectedMonth) return false;
-        } else {
-          if (createdAtFilter && (tx.createdAt || '').substring(0, 10) !== createdAtFilter) return false;
-        }
+        // Mês sempre respeita o seletor (em ambos os modos)
+        if (getTransactionMonth(tx.date) !== selectedMonth) return false;
+        // Filtro extra de data de criação
+        if (dateMode === 'created' && createdAtFilter &&
+            (tx.createdAt || '').substring(0, 10) !== createdAtFilter) return false;
         // Type + search
         if (filterType !== 'all' && tx.type !== filterType) return false;
         if (search) {
@@ -52,7 +51,11 @@ export default function Transactions() {
         }
         return true;
       })
-      .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || '')),
+      .sort((a, b) =>
+        dateMode === 'created'
+          ? (b.createdAt || '').localeCompare(a.createdAt || '')
+          : b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || '')
+      ),
   [data.transactions, selectedMonth, filterType, search, dateMode, createdAtFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -100,23 +103,23 @@ export default function Transactions() {
               </button>
             </div>
 
-            {dateMode === 'payment' ? (
-              /* Month navigator */
-              <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-2 py-1.5">
-                <button onClick={() => { setSelectedMonth(getPrevMonth(selectedMonth)); setPage(1); }}
-                  className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                  <ChevronLeft className="w-4 h-4 text-gray-500" />
-                </button>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-32 text-center select-none">
-                  {getMonthLabel(selectedMonth)}
-                </span>
-                <button onClick={() => { setSelectedMonth(getNextMonth(selectedMonth)); setPage(1); }}
-                  className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                  <ChevronRight className="w-4 h-4 text-gray-500" />
-                </button>
-              </div>
-            ) : (
-              /* Date picker */
+            {/* Month navigator — always visible */}
+            <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-2 py-1.5">
+              <button onClick={() => { setSelectedMonth(getPrevMonth(selectedMonth)); setPage(1); }}
+                className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <ChevronLeft className="w-4 h-4 text-gray-500" />
+              </button>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-32 text-center select-none">
+                {getMonthLabel(selectedMonth)}
+              </span>
+              <button onClick={() => { setSelectedMonth(getNextMonth(selectedMonth)); setPage(1); }}
+                className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Date picker — only in "created" mode */}
+            {dateMode === 'created' && (
               <input
                 type="date"
                 value={createdAtFilter}
