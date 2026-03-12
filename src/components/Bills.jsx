@@ -4,17 +4,9 @@ import {
   Paperclip, AlertCircle, Clock, CheckCheck, Receipt, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { formatCurrency, formatDate, getCurrentMonth, getPrevMonth, getNextMonth, getMonthLabel } from '../utils/formatters';
+import { formatCurrency, formatDate, getCurrentMonth, getPrevMonth, getNextMonth, getMonthLabel, getDueDiff } from '../utils/formatters';
 import BillModal from './BillModal';
 import ConfirmModal from './ConfirmModal';
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function getDueDiff(dueDate) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDate + 'T00:00:00');
-  return Math.round((due - today) / 86400000);
-}
 
 function StatusBadge({ bill }) {
   if (bill.status === 'paid') {

@@ -1,6 +1,7 @@
 import { Menu, LogOut, Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider, useApp } from './context/AppContext';
+import { ToastProvider } from './context/ToastContext';
 import AuthPage from './components/AuthPage';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -113,8 +114,10 @@ function AuthGate() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AuthGate />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <AuthGate />
+      </AuthProvider>
+    </ToastProvider>
   );
 }

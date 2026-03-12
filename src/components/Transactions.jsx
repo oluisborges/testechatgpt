@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Trash2, Search, Filter, Pencil, RefreshCw, FileText, Paperclip } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Plus, Trash2, Search, Filter, Pencil, FileText, Paperclip, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate, getTransactionMonth } from '../utils/formatters';
 import TransactionModal from './TransactionModal';
@@ -21,24 +21,33 @@ const AMOUNT_STYLES = {
 export default function Transactions() {
   const { data, deleteTransaction, selectedMonth } = useApp();
 
+  const PAGE_SIZE = 25;
+
   const [txModalOpen, setTxModalOpen] = useState(false);
   const [editingTx, setEditingTx]     = useState(null);
   const [confirmId, setConfirmId]     = useState(null);
   const [search, setSearch]           = useState('');
   const [filterType, setFilterType]   = useState('all');
+  const [page, setPage]               = useState(1);
 
-  const filtered = data.transactions
-    .filter(tx => {
-      const matchMonth  = getTransactionMonth(tx.date) === selectedMonth;
-      const matchType   = filterType === 'all' || tx.type === filterType;
-      const q           = search.toLowerCase();
-      const matchSearch = !search ||
-        tx.description.toLowerCase().includes(q) ||
-        (tx.category || '').toLowerCase().includes(q) ||
-        (tx.notes || '').toLowerCase().includes(q);
-      return matchMonth && matchType && matchSearch;
-    })
-    .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || ''));
+  const filtered = useMemo(() =>
+    data.transactions
+      .filter(tx => {
+        const matchMonth  = getTransactionMonth(tx.date) === selectedMonth;
+        const matchType   = filterType === 'all' || tx.type === filterType;
+        const q           = search.toLowerCase();
+        const matchSearch = !search ||
+          tx.description.toLowerCase().includes(q) ||
+          (tx.category || '').toLowerCase().includes(q) ||
+          (tx.notes || '').toLowerCase().includes(q);
+        return matchMonth && matchType && matchSearch;
+      })
+      .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || '')),
+  [data.transactions, selectedMonth, filterType, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage   = Math.min(page, totalPages);
+  const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const handleDelete = () => {
     if (confirmId) { deleteTransaction(confirmId); setConfirmId(null); }
@@ -56,6 +65,7 @@ export default function Transactions() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Transações</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {filtered.length} lançamento{filtered.length !== 1 ? 's' : ''}
+            {filtered.length > PAGE_SIZE && ` · página ${safePage} de ${totalPages}`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -74,14 +84,14 @@ export default function Transactions() {
       <div className="flex gap-3 flex-wrap">
         <div className="flex-1 min-w-40 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)}
+          <input type="text" placeholder="Buscar..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
             className="w-full pl-10 pr-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
                        bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm
                        placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400 transition-shadow" />
         </div>
         <div className="flex p-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl gap-1 overflow-x-auto shrink-0">
           {[['all', 'Todos'], ['income', 'Receitas'], ['expense', 'Despesas'], ['investment', 'Invest.']].map(([val, label]) => (
-            <button key={val} onClick={() => setFilterType(val)}
+            <button key={val} onClick={() => { setFilterType(val); setPage(1); }}
               className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all
                           ${filterType === val
                             ? 'bg-violet-600 text-white shadow-sm'
@@ -109,7 +119,7 @@ export default function Transactions() {
           </div>
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
-            {filtered.map(tx => {
+            {paginated.map(tx => {
               const account = getAccount(tx.accountId);
               return (
                 <div key={tx.id}
@@ -125,11 +135,6 @@ export default function Transactions() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="font-medium text-gray-900 dark:text-white text-sm">{tx.description}</p>
-                      {tx.isRecurring && (
-                        <span title="Recorrente">
-                          <RefreshCw className="w-3 h-3 text-violet-400 shrink-0" />
-                        </span>
-                      )}
                       {tx.notes && (
                         <span title={tx.notes}>
                           <FileText className="w-3 h-3 text-gray-400 shrink-0" />
@@ -190,6 +195,37 @@ export default function Transactions() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={safePage === 1}
+            className="w-9 h-9 rounded-2xl flex items-center justify-center border border-gray-200
+                       dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500
+                       hover:text-violet-600 hover:border-violet-300 dark:hover:border-violet-600
+                       disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <span className="text-sm text-gray-500 dark:text-gray-400 min-w-20 text-center">
+            {safePage} / {totalPages}
+          </span>
+
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={safePage === totalPages}
+            className="w-9 h-9 rounded-2xl flex items-center justify-center border border-gray-200
+                       dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500
+                       hover:text-violet-600 hover:border-violet-300 dark:hover:border-violet-600
+                       disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <TransactionModal isOpen={txModalOpen} onClose={closeModal} transaction={editingTx} />
 

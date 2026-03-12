@@ -16,7 +16,6 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
 
   const [form, setForm] = useState({
     name: '',
-    description: '',
     amount: '',
     dueDate: formatDateInput(new Date()),
     category: 'Outros',
@@ -33,7 +32,6 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
     if (isEdit) {
       setForm({
         name: bill.name,
-        description: bill.description || '',
         amount: floatToCents(bill.amount),
         dueDate: bill.dueDate,
         category: bill.category || 'Outros',
@@ -45,7 +43,6 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
       const defaultAccount = data.accounts.find(a => a.name === 'Banco Principal') || data.accounts[0];
       setForm({
         name: '',
-        description: '',
         amount: '',
         dueDate: formatDateInput(new Date()),
         category: 'Outros',
@@ -108,13 +105,6 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Nome da conta *</label>
             <input type="text" required value={form.name} onChange={set('name')}
               placeholder="Ex: Conta de Luz, Internet, Aluguel..." className={INPUT_CLASS} />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Descrição</label>
-            <textarea value={form.description} onChange={set('description')} rows={2}
-              placeholder="Observações, referência, número da fatura..." className={`${INPUT_CLASS} resize-none`} />
           </div>
 
           {/* Amount + Due date */}

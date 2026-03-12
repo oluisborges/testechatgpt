@@ -69,3 +69,10 @@ export const getTransactionMonth = (dateStr) => {
   if (!dateStr) return '';
   return dateStr.substring(0, 7);
 };
+
+/** Returns the number of days until dueDate (negative = overdue). */
+export const getDueDiff = (dueDate) => {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate + 'T00:00:00');
+  return Math.round((due - today) / 86400000);
+};

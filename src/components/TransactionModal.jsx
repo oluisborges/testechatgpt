@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, RefreshCw, Upload, Paperclip } from 'lucide-react';
+import { X, Upload, Paperclip, RefreshCw } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatDateInput } from '../utils/formatters';
 import CurrencyInput, { centsToFloat, floatToCents } from './CurrencyInput';
@@ -9,12 +9,6 @@ const TYPE_CONFIG = {
   expense: { label: 'Despesa', color: 'bg-red-500' },
   investment: { label: 'Investimento', color: 'bg-violet-500' },
 };
-
-const RECURRENCE_OPTIONS = [
-  { value: 'weekly', label: 'Semanal' },
-  { value: 'monthly', label: 'Mensal' },
-  { value: 'yearly', label: 'Anual' },
-];
 
 const INPUT_CLASS = `w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
   bg-white dark:bg-gray-700 text-gray-900 dark:text-white
@@ -35,8 +29,6 @@ export default function TransactionModal({ isOpen, onClose, transaction = null }
     accountId: '',
     paymentMethod: 'Pix',
     notes: '',
-    isRecurring: false,
-    recurrenceInterval: 'monthly',
   });
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -54,8 +46,6 @@ export default function TransactionModal({ isOpen, onClose, transaction = null }
         accountId: transaction.accountId || '',
         paymentMethod: transaction.paymentMethod || 'Pix',
         notes: transaction.notes || '',
-        isRecurring: transaction.isRecurring || false,
-        recurrenceInterval: transaction.recurrenceInterval || 'monthly',
       });
     } else {
       const defaultAccount = data.accounts.find(a => a.name === 'Banco Principal') || data.accounts[0];
@@ -68,8 +58,6 @@ export default function TransactionModal({ isOpen, onClose, transaction = null }
         accountId: defaultAccount?.id || '',
         paymentMethod: 'Pix',
         notes: '',
-        isRecurring: false,
-        recurrenceInterval: 'monthly',
       });
     }
   }, [isOpen, isEdit, transaction, data.accounts]);
@@ -97,7 +85,6 @@ export default function TransactionModal({ isOpen, onClose, transaction = null }
   };
 
   const set = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
-  const toggle = (field) => () => setForm(prev => ({ ...prev, [field]: !prev[field] }));
 
   const existingFile = isEdit && transaction?.fileName;
 
@@ -219,30 +206,6 @@ export default function TransactionModal({ isOpen, onClose, transaction = null }
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1">
                 <Paperclip className="w-3 h-3" /> Atual: {existingFile}
               </p>
-            )}
-          </div>
-
-          {/* Recurring toggle */}
-          <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/40 rounded-2xl">
-            <button type="button" onClick={toggle('isRecurring')}
-              className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${
-                form.isRecurring ? 'bg-violet-600' : 'bg-gray-200 dark:bg-gray-600'
-              }`}>
-              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${
-                form.isRecurring ? 'left-5' : 'left-1'
-              }`} />
-            </button>
-            <div className="flex items-center gap-2 flex-1">
-              <RefreshCw className={`w-4 h-4 ${form.isRecurring ? 'text-violet-600 dark:text-violet-400' : 'text-gray-400'}`} />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Recorrente</span>
-            </div>
-            {form.isRecurring && (
-              <select value={form.recurrenceInterval} onChange={set('recurrenceInterval')}
-                className="text-sm border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700
-                           text-gray-900 dark:text-white rounded-xl px-2 py-1 focus:outline-none
-                           focus:ring-2 focus:ring-violet-400">
-                {RECURRENCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
             )}
           </div>
 

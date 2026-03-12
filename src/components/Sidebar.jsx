@@ -1,12 +1,7 @@
 import { LayoutDashboard, ArrowLeftRight, Target, PiggyBank, X, TrendingUp, Wallet, CalendarDays, CreditCard, Receipt } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { formatCurrency } from '../utils/formatters';
-
-function getDueDiff(dueDate) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  return Math.round((new Date(dueDate + 'T00:00:00') - today) / 86400000);
-}
+import { formatCurrency, getDueDiff } from '../utils/formatters';
 
 const NAV_ITEMS = [
   { id: 'dashboard',    label: 'Dashboard',       icon: LayoutDashboard },
