@@ -62,12 +62,10 @@ export default function AnnualSummary() {
     { income: 0, expense: 0, investment: 0, balance: 0 }
   );
 
-  // Divide by current month number when viewing current year, else by 12
-  const currentMonthNum = new Date().getMonth() + 1;
-  const divisor = year === currentYear ? currentMonthNum : 12;
+  const activeMonths = monthlyData.filter(m => m.income > 0 || m.expense > 0 || m.investment > 0).length || 1;
 
-  const avgIncome = totals.income / divisor;
-  const avgExpense = totals.expense / divisor;
+  const avgIncome = totals.income / activeMonths;
+  const avgExpense = totals.expense / activeMonths;
 
   // Best/worst months
   const incomeMonths = [...monthlyData].sort((a, b) => b.income - a.income);
@@ -115,11 +113,11 @@ export default function AnnualSummary() {
       {/* Annual totals */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Receitas" value={totals.income} icon={TrendingUp} color="bg-emerald-500"
-          sub={`Média: ${formatCurrency(avgIncome)}/mês`} />
+          sub={`Média: ${formatCurrency(avgIncome)}/mês (${activeMonths} mês${activeMonths !== 1 ? 'es' : ''})`} />
         <StatCard title="Total Despesas" value={totals.expense} icon={TrendingDown} color="bg-red-400"
-          sub={`Média: ${formatCurrency(avgExpense)}/mês`} />
+          sub={`Média: ${formatCurrency(avgExpense)}/mês (${activeMonths} mês${activeMonths !== 1 ? 'es' : ''})`} />
         <StatCard title="Total Investido" value={totals.investment} icon={BarChart3} color="bg-violet-500"
-          sub={`Média: ${formatCurrency(totals.investment / divisor)}/mês`} />
+          sub={`Média: ${formatCurrency(totals.investment / activeMonths)}/mês (${activeMonths} mês${activeMonths !== 1 ? 'es' : ''})`} />
         <StatCard
           title="Saldo do Ano"
           value={totals.balance}
