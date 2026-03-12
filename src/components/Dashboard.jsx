@@ -13,14 +13,15 @@ import MonthFilter from './MonthFilter';
 
 const COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#84cc16'];
 
-// futureColor: 'danger' = always red | 'success' = always green | 'auto' = sign-based
+// futureColor: 'danger'='red' | 'success'='green' | 'violet'='violet' | 'auto'=sign-based
 function SummaryCard({ title, value, future, futureColor = 'auto', icon: Icon, color }) {
   const futureColorClass = future == null || future === 0 ? '' :
     futureColor === 'danger'  ? 'text-red-400' :
     futureColor === 'success' ? 'text-emerald-500' :
+    futureColor === 'violet'  ? 'text-violet-500 dark:text-violet-400' :
     future > 0 ? 'text-emerald-500' : 'text-red-400';
 
-  const futureSign = futureColor === 'danger' ? '+' : future > 0 ? '+' : '';
+  const futureSign = (futureColor === 'danger' || futureColor === 'violet' || (futureColor === 'auto' && future > 0)) ? '+' : '';
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700
@@ -92,10 +93,11 @@ export default function Dashboard() {
   // Reset drill-down when switching view or month
   useEffect(() => { setDrillCategory(null); }, [pieView, selectedMonth]);
 
-  // ── Area chart ────────────────────────────────────────────────────────────
+  // ── Area chart (only confirmed transactions) ──────────────────────────────
+  const today = new Date().toISOString().substring(0, 10);
   const last6 = getLast6MonthsFrom(selectedMonth);
   const chartData = last6.map(month => {
-    const txs = data.transactions.filter(t => getTransactionMonth(t.date) === month);
+    const txs = data.transactions.filter(t => getTransactionMonth(t.date) === month && t.date <= today);
     return {
       month: getMonthName(month),
       Receitas: txs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
@@ -104,9 +106,9 @@ export default function Dashboard() {
     };
   });
 
-  // ── Pie chart data ────────────────────────────────────────────────────────
+  // ── Pie chart data (only confirmed transactions) ──────────────────────────
   const baseTxs = data.transactions.filter(t =>
-    t.type === pieView && getTransactionMonth(t.date) === selectedMonth
+    t.type === pieView && getTransactionMonth(t.date) === selectedMonth && t.date <= today
   );
 
   const pieData = (() => {
@@ -172,7 +174,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard title="Receitas"        value={monthlyIncome}      future={isCurrentMonth ? futureMonthlyIncome        : null} futureColor="success" icon={TrendingUp}   color="bg-emerald-500" />
         <SummaryCard title="Despesas"        value={monthlyExpenses}    future={isCurrentMonth ? futureMonthlyExpenses      : null} futureColor="danger"  icon={TrendingDown} color="bg-red-400" />
-        <SummaryCard title="Investido"       value={monthlyInvestments} future={isCurrentMonth ? futureMonthlyInvestments   : null} futureColor="danger"  icon={BarChart3}    color="bg-violet-500" />
+        <SummaryCard title="Investido"       value={monthlyInvestments} future={isCurrentMonth ? futureMonthlyInvestments   : null} futureColor="violet" icon={BarChart3}    color="bg-violet-500" />
         <SummaryCard title="Saldo em Contas" value={monthlyBalance}     future={isCurrentMonth ? futureMonthlyBalance       : null} futureColor="auto"    icon={Wallet}       color="bg-blue-500" />
       </div>
 
@@ -355,19 +357,31 @@ export default function Dashboard() {
         ) : (
           <div className="space-y-2">
             {recentTx.map(tx => {
-              const account = data.accounts.find(a => a.id === tx.accountId);
+              const account  = data.accounts.find(a => a.id === tx.accountId);
+              const isFuture = tx.date > today;
               return (
                 <div key={tx.id}
-                  className="flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50
-                             dark:hover:bg-gray-700/50 transition-colors">
+                  className={`flex items-center gap-3 p-3 rounded-2xl transition-colors
+                              ${isFuture
+                                ? 'opacity-70 hover:opacity-100 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
                   <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-lg
                                    font-bold shrink-0 ${txTypeStyle[tx.type]}`}>
                     {txSign[tx.type]}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                      {tx.description}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                        {tx.description}
+                      </p>
+                      {isFuture && (
+                        <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg
+                                         bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400
+                                         text-xs font-medium">
+                          <Clock className="w-3 h-3" /> Futuro
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500">
                       {tx.category || '—'} · {account?.name || 'Conta removida'} · {formatDate(tx.date)}
                     </p>

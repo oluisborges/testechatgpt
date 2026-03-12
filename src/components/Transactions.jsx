@@ -69,6 +69,7 @@ export default function Transactions() {
   const openEdit  = (tx) => { setEditingTx(tx); setTxModalOpen(true); };
   const closeModal = () => { setTxModalOpen(false); setEditingTx(null); };
   const getAccount = (id) => data.accounts.find(a => a.id === id);
+  const today = new Date().toISOString().substring(0, 10);
 
   return (
     <div className="space-y-5">
@@ -184,7 +185,6 @@ export default function Transactions() {
           <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
             {paginated.map(tx => {
               const account  = getAccount(tx.accountId);
-              const today    = new Date().toISOString().substring(0, 10);
               const isFuture = tx.date > today;
               return (
                 <div key={tx.id}

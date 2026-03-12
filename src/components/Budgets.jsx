@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, PiggyBank, Pencil, Check, X } from 'lucide-react';
+import { Plus, Trash2, PiggyBank, Pencil, Check, X, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatters';
 import ConfirmModal from './ConfirmModal';
@@ -193,7 +193,13 @@ export default function Budgets() {
           {data.budgets.map(budget => {
             const spent = getBudgetSpent(budget.category);
             const pct = budget.limit > 0 ? Math.min(100, (spent / budget.limit) * 100) : 0;
-            const status = pct >= 90 ? '🔴 Crítico' : pct >= 70 ? '🟡 Atenção' : '🟢 OK';
+            const statusIcon  = pct >= 90 ? AlertCircle  : pct >= 70 ? AlertTriangle : CheckCircle2;
+            const statusLabel = pct >= 90 ? 'Crítico'    : pct >= 70 ? 'Atenção'     : 'OK';
+            const statusClass = pct >= 90
+              ? 'text-red-500 dark:text-red-400'
+              : pct >= 70 ? 'text-amber-500 dark:text-amber-400'
+              : 'text-emerald-500 dark:text-emerald-400';
+            const StatusIcon = statusIcon;
             const isEditing = editId === budget.id;
 
             return (
@@ -258,7 +264,9 @@ export default function Budgets() {
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <h3 className="font-semibold text-gray-900 dark:text-white">{budget.category}</h3>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{status}</p>
+                      <p className={`flex items-center gap-1 text-xs font-medium mt-0.5 ${statusClass}`}>
+                        <StatusIcon className="w-3 h-3" />{statusLabel}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">

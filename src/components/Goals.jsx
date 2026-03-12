@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Target, Pencil } from 'lucide-react';
+import { Plus, Trash2, Target, Pencil, AlertTriangle, Clock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate, getTransactionMonth } from '../utils/formatters';
 import ConfirmModal from './ConfirmModal';
@@ -216,6 +216,14 @@ export default function Goals() {
               .filter(t => t.type === 'investment' && t.category === goal.category && getTransactionMonth(t.date) === selectedMonth)
               .reduce((s, t) => s + t.amount, 0);
 
+            // Deadline logic
+            const today = new Date().toISOString().substring(0, 10);
+            const deadlineDiff = goal.deadline
+              ? Math.round((new Date(goal.deadline) - new Date(today)) / 86400000)
+              : null;
+            const isOverdue   = !completed && deadlineDiff !== null && deadlineDiff < 0;
+            const isUrgent    = !completed && deadlineDiff !== null && deadlineDiff >= 0 && deadlineDiff <= 30;
+
             return (
               <div key={goal.id}
                 className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100
@@ -227,12 +235,28 @@ export default function Goals() {
                     <Target className="w-5 h-5" style={{ color: goal.color }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold text-gray-900 dark:text-white truncate">{goal.name}</h3>
                       {completed && (
                         <span className="shrink-0 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30
                                          text-emerald-700 dark:text-emerald-400 text-xs font-semibold rounded-lg">
                           Concluída!
+                        </span>
+                      )}
+                      {isOverdue && (
+                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg
+                                         bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400
+                                         text-xs font-semibold">
+                          <AlertTriangle className="w-3 h-3" />
+                          Prazo vencido
+                        </span>
+                      )}
+                      {isUrgent && (
+                        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg
+                                         bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400
+                                         text-xs font-semibold">
+                          <Clock className="w-3 h-3" />
+                          {deadlineDiff === 0 ? 'Vence hoje' : `${deadlineDiff}d restantes`}
                         </span>
                       )}
                     </div>
