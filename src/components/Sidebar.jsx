@@ -18,6 +18,14 @@ const NAV_ITEMS = [
   { id: 'annual',       label: 'Resumo Anual',     icon: CalendarDays },
 ];
 
+const BOTTOM_NAV = [
+  { id: 'dashboard',    label: 'Início',   icon: LayoutDashboard },
+  { id: 'transactions', label: 'Transaç.', icon: ArrowLeftRight },
+  { id: 'bills',        label: 'Contas',   icon: Receipt },
+  { id: 'budgets',      label: 'Orçam.',   icon: PiggyBank },
+  { id: 'goals',        label: 'Metas',    icon: Target },
+];
+
 export default function Sidebar() {
   const { activePage, setActivePage, sidebarOpen, setSidebarOpen, totalBalance, totalInvested, data } = useApp();
   const { user } = useAuth();
@@ -137,6 +145,32 @@ export default function Sidebar() {
           </p>
         </div>
       </aside>
+      {/* Mobile bottom nav */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-white dark:bg-gray-900
+                      border-t border-gray-100 dark:border-gray-800 flex safe-area-pb">
+        {BOTTOM_NAV.map(({ id, label, icon: Icon }) => {
+          const active = activePage === id;
+          return (
+            <button
+              key={id}
+              onClick={() => navigate(id)}
+              className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors
+                          ${active
+                            ? 'text-violet-600 dark:text-violet-400'
+                            : 'text-gray-400 dark:text-gray-500'}`}
+            >
+              <div className={`w-8 h-8 flex items-center justify-center rounded-xl transition-colors
+                               ${active ? 'bg-violet-50 dark:bg-violet-900/30' : ''}`}>
+                <Icon className="w-5 h-5" />
+                {id === 'bills' && urgentBills > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500" />
+                )}
+              </div>
+              <span className="text-[10px] font-medium leading-none">{label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </>
   );
 }

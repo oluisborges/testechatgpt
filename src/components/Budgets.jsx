@@ -52,16 +52,28 @@ export default function Budgets() {
   const [showForm, setShowForm] = useState(false);
   const [confirmId, setConfirmId] = useState(null);
   const [form, setForm] = useState({ category: '', limit: '' });
+  const [customMode, setCustomMode] = useState(false);
 
   const expenseCategories = data.categories.expense || [];
   const existingCategories = data.budgets.map(b => b.category);
   const availableCategories = expenseCategories.filter(c => !existingCategories.includes(c));
+
+  const handleCategoryChange = (e) => {
+    if (e.target.value === '__custom__') {
+      setCustomMode(true);
+      setForm(p => ({ ...p, category: '' }));
+    } else {
+      setCustomMode(false);
+      setForm(p => ({ ...p, category: e.target.value }));
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.category || !form.limit) return;
     addBudget({ category: form.category, limit: centsToFloat(form.limit) });
     setForm({ category: '', limit: '' });
+    setCustomMode(false);
     setShowForm(false);
   };
 
@@ -82,17 +94,15 @@ export default function Budgets() {
         </div>
         <div className="flex items-center gap-3">
           <MonthFilter />
-          {availableCategories.length > 0 && (
-            <button
-              onClick={() => setShowForm(!showForm)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
-                         text-white rounded-2xl font-medium transition-colors shadow-lg
-                         shadow-violet-200 dark:shadow-violet-900/40 text-sm"
-            >
-              <Plus className="w-4 h-4" />
-              Novo
-            </button>
-          )}
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
+                       text-white rounded-2xl font-medium transition-colors shadow-lg
+                       shadow-violet-200 dark:shadow-violet-900/40 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Novo
+          </button>
         </div>
       </div>
 
@@ -102,17 +112,42 @@ export default function Budgets() {
                         animate-[fadeInScale_0.2s_ease-out]">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Definir Orçamento</h3>
           <form onSubmit={handleSubmit} className="flex gap-3 flex-wrap">
-            <select
-              required
-              value={form.category}
-              onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
-              className="flex-1 min-w-40 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
-                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
-                         focus:outline-none focus:ring-2 focus:ring-violet-400"
-            >
-              <option value="">Selecionar categoria</option>
-              {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+            {customMode ? (
+              <div className="flex-1 min-w-40 flex gap-2">
+                <input
+                  autoFocus
+                  required
+                  type="text"
+                  placeholder="Nome da categoria"
+                  value={form.category}
+                  onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
+                  className="flex-1 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
+                             bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
+                             placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => { setCustomMode(false); setForm(p => ({ ...p, category: '' })); }}
+                  className="px-3 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
+                             text-gray-500 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  ↩
+                </button>
+              </div>
+            ) : (
+              <select
+                required
+                value={form.category}
+                onChange={handleCategoryChange}
+                className="flex-1 min-w-40 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
+                           bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
+                           focus:outline-none focus:ring-2 focus:ring-violet-400"
+              >
+                <option value="">Selecionar categoria</option>
+                {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                <option value="__custom__">✏️ Digitar outro nome...</option>
+              </select>
+            )}
             <CurrencyInput
               required
               placeholder="Limite mensal (R$)"

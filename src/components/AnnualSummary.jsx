@@ -62,8 +62,12 @@ export default function AnnualSummary() {
     { income: 0, expense: 0, investment: 0, balance: 0 }
   );
 
-  const avgIncome = totals.income / 12;
-  const avgExpense = totals.expense / 12;
+  // Divide by current month number when viewing current year, else by 12
+  const currentMonthNum = new Date().getMonth() + 1;
+  const divisor = year === currentYear ? currentMonthNum : 12;
+
+  const avgIncome = totals.income / divisor;
+  const avgExpense = totals.expense / divisor;
 
   // Best/worst months
   const incomeMonths = [...monthlyData].sort((a, b) => b.income - a.income);
@@ -115,7 +119,7 @@ export default function AnnualSummary() {
         <StatCard title="Total Despesas" value={totals.expense} icon={TrendingDown} color="bg-red-400"
           sub={`Média: ${formatCurrency(avgExpense)}/mês`} />
         <StatCard title="Total Investido" value={totals.investment} icon={BarChart3} color="bg-violet-500"
-          sub={`Média: ${formatCurrency(totals.investment / 12)}/mês`} />
+          sub={`Média: ${formatCurrency(totals.investment / divisor)}/mês`} />
         <StatCard
           title="Saldo do Ano"
           value={totals.balance}

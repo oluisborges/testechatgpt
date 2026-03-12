@@ -1,4 +1,4 @@
-import { Menu, Sun, Moon, LogOut, Loader2 } from 'lucide-react';
+import { Menu, LogOut, Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppProvider, useApp } from './context/AppContext';
 import AuthPage from './components/AuthPage';
@@ -22,7 +22,7 @@ const PAGE_TITLES = {
 };
 
 function AppInner() {
-  const { theme, toggleTheme, activePage, setSidebarOpen, loading } = useApp();
+  const { theme, activePage, setSidebarOpen, loading } = useApp();
   const { signOut, user } = useAuth();
 
   if (loading) {
@@ -70,19 +70,6 @@ function AppInner() {
               {PAGE_TITLES[activePage]}
             </h1>
 
-            {/* Theme toggle */}
-            <button
-              onClick={toggleTheme}
-              className="w-9 h-9 rounded-xl flex items-center justify-center
-                         hover:bg-white dark:hover:bg-gray-800 border border-gray-200
-                         dark:border-gray-700 transition-colors"
-              title={theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}
-            >
-              {theme === 'dark'
-                ? <Sun className="w-4 h-4 text-amber-400" />
-                : <Moon className="w-4 h-4 text-gray-600" />}
-            </button>
-
             {/* Logout */}
             <button
               onClick={signOut}
@@ -96,7 +83,7 @@ function AppInner() {
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6">
+        <main className="flex-1 p-4 sm:p-6 pb-20 lg:pb-6">
           {renderPage()}
         </main>
       </div>

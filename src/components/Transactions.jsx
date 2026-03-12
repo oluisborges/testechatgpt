@@ -79,7 +79,7 @@ export default function Transactions() {
                        bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm
                        placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400 transition-shadow" />
         </div>
-        <div className="flex p-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl gap-1">
+        <div className="flex p-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl gap-1 overflow-x-auto shrink-0">
           {[['all', 'Todos'], ['income', 'Receitas'], ['expense', 'Despesas'], ['investment', 'Invest.']].map(([val, label]) => (
             <button key={val} onClick={() => setFilterType(val)}
               className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all

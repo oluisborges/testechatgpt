@@ -164,7 +164,7 @@ export default function Bills() {
                          hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
               <ChevronLeft className="w-4 h-4 text-gray-500" />
             </button>
-            <span className="text-sm font-medium text-gray-900 dark:text-white w-28 text-center capitalize">
+            <span className="text-sm font-medium text-gray-900 dark:text-white w-24 sm:w-28 text-center capitalize truncate">
               {getMonthLabel(billsMonth)}
             </span>
             <button onClick={() => setBillsMonth(getNextMonth(billsMonth))}
@@ -179,7 +179,8 @@ export default function Bills() {
             className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
                        text-white rounded-2xl font-medium transition-colors shadow-lg
                        shadow-violet-200 dark:shadow-violet-900/40 text-sm">
-            <Plus className="w-4 h-4" /> Nova Conta
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Nova Conta</span>
           </button>
         </div>
       </div>
@@ -213,7 +214,7 @@ export default function Bills() {
       )}
 
       {/* Filter tabs */}
-      <div className="flex p-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl gap-1 w-fit">
+      <div className="flex p-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl gap-1 overflow-x-auto">
         {FILTERS.map(({ id, label, count }) => (
           <button key={id} onClick={() => setFilter(id)}
             className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5
