@@ -77,7 +77,6 @@ export default function Bills() {
   const [filter, setFilter] = useState('pending'); // all | pending | overdue | paid
   const [billsMonth, setBillsMonth] = useState(getCurrentMonth());
 
-  const currentMonth = getCurrentMonth();
   const getAccount = useCallback((id) => data.accounts.find(a => a.id === id), [data.accounts]);
 
   // Filter by month first, then by status
@@ -160,10 +159,8 @@ export default function Bills() {
               {getMonthLabel(billsMonth)}
             </span>
             <button onClick={() => setBillsMonth(getNextMonth(billsMonth))}
-              disabled={billsMonth >= currentMonth}
               className="w-7 h-7 rounded-xl flex items-center justify-center
-                         hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors
-                         disabled:opacity-30 disabled:cursor-not-allowed">
+                         hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
               <ChevronRight className="w-4 h-4 text-gray-500" />
             </button>
           </div>
