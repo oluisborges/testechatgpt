@@ -1,11 +1,9 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getMonthLabel, getPrevMonth, getNextMonth, getCurrentMonth } from '../utils/formatters';
+import { getMonthLabel, getPrevMonth, getNextMonth } from '../utils/formatters';
 
 export default function MonthFilter() {
   const { selectedMonth, setSelectedMonth } = useApp();
-  const isCurrentMonth = selectedMonth === getCurrentMonth();
-
   return (
     <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-2 py-1.5">
       <button
@@ -19,8 +17,7 @@ export default function MonthFilter() {
       </span>
       <button
         onClick={() => setSelectedMonth(getNextMonth(selectedMonth))}
-        disabled={isCurrentMonth}
-        className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
       >
         <ChevronRight className="w-4 h-4 text-gray-500" />
       </button>
