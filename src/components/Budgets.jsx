@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Plus, Trash2, PiggyBank } from 'lucide-react';
+import { Plus, Trash2, PiggyBank, Pencil, Check, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../utils/formatters';
 import ConfirmModal from './ConfirmModal';
-import CurrencyInput, { centsToFloat } from './CurrencyInput';
+import CurrencyInput, { centsToFloat, floatToCents } from './CurrencyInput';
 import MonthFilter from './MonthFilter';
 
 function ProgressBar({ spent, limit }) {
@@ -47,12 +47,17 @@ function ProgressBar({ spent, limit }) {
 }
 
 export default function Budgets() {
-  const { data, addBudget, deleteBudget, getBudgetSpent } = useApp();
+  const { data, addBudget, updateBudget, deleteBudget, getBudgetSpent } = useApp();
 
   const [showForm, setShowForm] = useState(false);
   const [confirmId, setConfirmId] = useState(null);
   const [form, setForm] = useState({ category: '', limit: '' });
   const [customMode, setCustomMode] = useState(false);
+
+  // Inline edit state
+  const [editId, setEditId] = useState(null);
+  const [editForm, setEditForm] = useState({ category: '', limit: '' });
+  const [editCustomMode, setEditCustomMode] = useState(false);
 
   const expenseCategories = data.categories.expense || [];
   const existingCategories = data.budgets.map(b => b.category);
@@ -78,10 +83,21 @@ export default function Budgets() {
   };
 
   const handleDelete = () => {
-    if (confirmId) {
-      deleteBudget(confirmId);
-      setConfirmId(null);
-    }
+    if (confirmId) { deleteBudget(confirmId); setConfirmId(null); }
+  };
+
+  const startEdit = (budget) => {
+    setEditId(budget.id);
+    setEditForm({ category: budget.category, limit: floatToCents(budget.limit) });
+    setEditCustomMode(false);
+  };
+
+  const cancelEdit = () => { setEditId(null); setEditForm({ category: '', limit: '' }); };
+
+  const handleEditSave = (id) => {
+    if (!editForm.category || !editForm.limit) return;
+    updateBudget(id, { category: editForm.category, limit: centsToFloat(editForm.limit) });
+    cancelEdit();
   };
 
   return (
@@ -115,63 +131,46 @@ export default function Budgets() {
             {customMode ? (
               <div className="flex-1 min-w-40 flex gap-2">
                 <input
-                  autoFocus
-                  required
-                  type="text"
-                  placeholder="Nome da categoria"
+                  autoFocus required type="text" placeholder="Nome da categoria"
                   value={form.category}
                   onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
                   className="flex-1 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
                              placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
                 />
-                <button
-                  type="button"
+                <button type="button"
                   onClick={() => { setCustomMode(false); setForm(p => ({ ...p, category: '' })); }}
                   className="px-3 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
-                             text-gray-500 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
+                             text-gray-500 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                   ↩
                 </button>
               </div>
             ) : (
-              <select
-                required
-                value={form.category}
-                onChange={handleCategoryChange}
+              <select required value={form.category} onChange={handleCategoryChange}
                 className="flex-1 min-w-40 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
                            bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
-                           focus:outline-none focus:ring-2 focus:ring-violet-400"
-              >
+                           focus:outline-none focus:ring-2 focus:ring-violet-400">
                 <option value="">Selecionar categoria</option>
                 {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
                 <option value="__custom__">✏️ Digitar outro nome...</option>
               </select>
             )}
-            <CurrencyInput
-              required
-              placeholder="Limite mensal (R$)"
-              value={form.limit}
+            <CurrencyInput required placeholder="Limite mensal (R$)" value={form.limit}
               onChange={(v) => setForm(p => ({ ...p, limit: v }))}
               className="flex-1 min-w-40 px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
                          bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
                          placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
             />
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
+              <button type="button" onClick={() => setShowForm(false)}
                 className="px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
                            text-gray-600 dark:text-gray-400 text-sm font-medium hover:bg-gray-50
-                           dark:hover:bg-gray-700 transition-colors"
-              >
+                           dark:hover:bg-gray-700 transition-colors">
                 Cancelar
               </button>
-              <button
-                type="submit"
+              <button type="submit"
                 className="px-4 py-2.5 rounded-2xl bg-violet-600 hover:bg-violet-700
-                           text-white text-sm font-medium transition-colors"
-              >
+                           text-white text-sm font-medium transition-colors">
                 Salvar
               </button>
             </div>
@@ -195,33 +194,94 @@ export default function Budgets() {
             const spent = getBudgetSpent(budget.category);
             const pct = budget.limit > 0 ? Math.min(100, (spent / budget.limit) * 100) : 0;
             const status = pct >= 90 ? '🔴 Crítico' : pct >= 70 ? '🟡 Atenção' : '🟢 OK';
+            const isEditing = editId === budget.id;
 
             return (
-              <div
-                key={budget.id}
+              <div key={budget.id}
                 className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100
-                           dark:border-gray-700 hover:shadow-md transition-shadow group"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-900 dark:text-white">{budget.category}</h3>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{status}</p>
+                           dark:border-gray-700 hover:shadow-md transition-shadow group">
+                {isEditing ? (
+                  /* ── Edit mode ── */
+                  <div className="space-y-3 mb-4">
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Editando orçamento</p>
+                    {editCustomMode ? (
+                      <div className="flex gap-2">
+                        <input autoFocus type="text" placeholder="Nome da categoria"
+                          value={editForm.category}
+                          onChange={e => setEditForm(p => ({ ...p, category: e.target.value }))}
+                          className="flex-1 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600
+                                     bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white
+                                     focus:outline-none focus:ring-2 focus:ring-violet-400"
+                        />
+                        <button type="button"
+                          onClick={() => { setEditCustomMode(false); setEditForm(p => ({ ...p, category: budget.category })); }}
+                          className="px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600
+                                     text-gray-500 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                          ↩
+                        </button>
+                      </div>
+                    ) : (
+                      <select value={editForm.category}
+                        onChange={e => {
+                          if (e.target.value === '__custom__') { setEditCustomMode(true); setEditForm(p => ({ ...p, category: '' })); }
+                          else setEditForm(p => ({ ...p, category: e.target.value }));
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600
+                                   bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white
+                                   focus:outline-none focus:ring-2 focus:ring-violet-400">
+                        {expenseCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                        <option value="__custom__">✏️ Digitar outro nome...</option>
+                      </select>
+                    )}
+                    <CurrencyInput placeholder="Limite mensal (R$)" value={editForm.limit}
+                      onChange={(v) => setEditForm(p => ({ ...p, limit: v }))}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600
+                                 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white
+                                 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={() => handleEditSave(budget.id)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-700
+                                   text-white text-xs font-medium transition-colors">
+                        <Check className="w-3.5 h-3.5" /> Salvar
+                      </button>
+                      <button onClick={cancelEdit}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200
+                                   dark:border-gray-600 text-gray-500 text-xs hover:bg-gray-50
+                                   dark:hover:bg-gray-700 transition-colors">
+                        <X className="w-3.5 h-3.5" /> Cancelar
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      {formatCurrency(budget.limit)}<span className="text-xs font-normal text-gray-400">/mês</span>
-                    </span>
-                    <button
-                      onClick={() => setConfirmId(budget.id)}
-                      className="w-8 h-8 rounded-xl flex items-center justify-center opacity-0
-                                 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20
-                                 text-gray-400 hover:text-red-500 transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                ) : (
+                  /* ── View mode ── */
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">{budget.category}</h3>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{status}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        {formatCurrency(budget.limit)}<span className="text-xs font-normal text-gray-400">/mês</span>
+                      </span>
+                      <button onClick={() => startEdit(budget)}
+                        className="w-8 h-8 rounded-xl flex items-center justify-center opacity-0
+                                   group-hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-900/20
+                                   text-gray-400 hover:text-blue-500 transition-all"
+                        title="Editar">
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => setConfirmId(budget.id)}
+                        className="w-8 h-8 rounded-xl flex items-center justify-center opacity-0
+                                   group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20
+                                   text-gray-400 hover:text-red-500 transition-all"
+                        title="Excluir">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <ProgressBar spent={spent} limit={budget.limit} />
+                )}
+                <ProgressBar spent={spent} limit={isEditing ? centsToFloat(editForm.limit) || budget.limit : budget.limit} />
               </div>
             );
           })}

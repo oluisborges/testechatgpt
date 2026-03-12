@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Target, Edit2, Check, X } from 'lucide-react';
+import { Plus, Trash2, Target, Pencil } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate, getTransactionMonth } from '../utils/formatters';
 import ConfirmModal from './ConfirmModal';
@@ -11,58 +11,143 @@ const COLORS = [
   '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#14b8a6',
 ];
 
+const EMPTY_FORM = { name: '', target: '', current: '', category: '', color: COLORS[0], deadline: '' };
+
+function GoalForm({ title, initial, onSave, onCancel, submitLabel, investmentCategories }) {
+  const [form, setForm] = useState(initial || EMPTY_FORM);
+  const set = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!form.name || !form.target) return;
+    onSave({
+      name: form.name,
+      target: centsToFloat(form.target),
+      current: centsToFloat(form.current),
+      category: form.category || form.name,
+      color: form.color,
+      deadline: form.deadline,
+    });
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700
+                    animate-[fadeInScale_0.2s_ease-out]">
+      <h3 className="font-semibold text-gray-900 dark:text-white mb-4">{title}</h3>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Nome da Meta</label>
+            <input
+              type="text" required placeholder="Ex: Viagem para Europa, Reserva de Emergência..."
+              value={form.name} onChange={set('name')}
+              className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
+                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
+                         placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Valor Alvo (R$)</label>
+            <CurrencyInput required placeholder="0,00" value={form.target}
+              onChange={(v) => setForm(prev => ({ ...prev, target: v }))}
+              className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
+                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
+                         placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Já economizei (R$)</label>
+            <CurrencyInput placeholder="0,00" value={form.current}
+              onChange={(v) => setForm(prev => ({ ...prev, current: v }))}
+              className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
+                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
+                         placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Categoria de Investimento</label>
+            <input type="text" list="inv-categories-form" placeholder="Nome da meta (padrão)"
+              value={form.category} onChange={set('category')}
+              className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
+                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
+                         placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
+            />
+            <datalist id="inv-categories-form">
+              {investmentCategories.map(c => <option key={c} value={c} />)}
+            </datalist>
+            <p className="text-xs text-gray-400 mt-1">Deixe em branco para usar o nome da meta.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Data Limite</label>
+            <input type="date" value={form.deadline} onChange={set('deadline')}
+              className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
+                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
+                         focus:outline-none focus:ring-2 focus:ring-violet-400"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cor da Meta</label>
+          <div className="flex gap-2 flex-wrap">
+            {COLORS.map(c => (
+              <button key={c} type="button" onClick={() => setForm(p => ({ ...p, color: c }))}
+                className={`w-8 h-8 rounded-xl transition-transform hover:scale-110 ${
+                  form.color === c ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-gray-500 scale-110' : ''
+                }`}
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="flex gap-3 pt-2">
+          <button type="button" onClick={onCancel}
+            className="px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
+                       text-gray-600 dark:text-gray-400 text-sm font-medium hover:bg-gray-50
+                       dark:hover:bg-gray-700 transition-colors">
+            Cancelar
+          </button>
+          <button type="submit"
+            className="px-6 py-2.5 rounded-2xl bg-violet-600 hover:bg-violet-700
+                       text-white text-sm font-medium transition-colors">
+            {submitLabel}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export default function Goals() {
   const { data, addGoal, updateGoal, deleteGoal, selectedMonth } = useApp();
 
   const [showForm, setShowForm] = useState(false);
   const [confirmId, setConfirmId] = useState(null);
-  const [editId, setEditId] = useState(null);
-  const [editAmount, setEditAmount] = useState('');
-  const [form, setForm] = useState({
-    name: '',
-    target: '',
-    current: '',
-    category: '',
-    color: COLORS[0],
-    deadline: '',
-  });
+  const [editingGoal, setEditingGoal] = useState(null);
 
   const investmentCategories = data.categories.investment || [];
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!form.name || !form.target) return;
-    const category = form.category || form.name;
-    addGoal({
-      name: form.name,
-      target: centsToFloat(form.target),
-      current: centsToFloat(form.current),
-      category,
-      color: form.color,
-      deadline: form.deadline,
-    });
-    setForm({ name: '', target: '', current: '', category: '', color: COLORS[0], deadline: '' });
+  const handleAdd = (values) => {
+    addGoal(values);
     setShowForm(false);
   };
 
+  const handleEditSave = (values) => {
+    updateGoal(editingGoal.id, {
+      name: values.name,
+      target: values.target,
+      current: Math.min(values.target, values.current),
+      category: values.category,
+      color: values.color,
+      deadline: values.deadline || null,
+    });
+    setEditingGoal(null);
+  };
+
   const handleDelete = () => {
-    if (confirmId) {
-      deleteGoal(confirmId);
-      setConfirmId(null);
-    }
+    if (confirmId) { deleteGoal(confirmId); setConfirmId(null); }
   };
-
-  const handleEditSave = (id) => {
-    const amount = centsToFloat(editAmount);
-    if (!isNaN(amount) && amount >= 0) {
-      const goal = data.goals.find(g => g.id === id);
-      updateGoal(id, { current: Math.min(goal.target, amount) });
-    }
-    setEditId(null);
-    setEditAmount('');
-  };
-
-  const set = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
 
   return (
     <div className="space-y-5">
@@ -74,143 +159,42 @@ export default function Goals() {
         </div>
         <div className="flex items-center gap-3">
           <MonthFilter />
-          <button
-            onClick={() => setShowForm(!showForm)}
+          <button onClick={() => { setShowForm(!showForm); setEditingGoal(null); }}
             className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
                        text-white rounded-2xl font-medium transition-colors shadow-lg
-                       shadow-violet-200 dark:shadow-violet-900/40 text-sm"
-          >
+                       shadow-violet-200 dark:shadow-violet-900/40 text-sm">
             <Plus className="w-4 h-4" />
             Nova Meta
           </button>
         </div>
       </div>
 
-      {/* Add form */}
-      {showForm && (
-        <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700
-                        animate-[fadeInScale_0.2s_ease-out]">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Nova Meta de Economia</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Nome da Meta
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Viagem para Europa, Reserva de Emergência..."
-                  value={form.name}
-                  onChange={set('name')}
-                  className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
-                             bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
-                             placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Valor Alvo (R$)
-                </label>
-                <CurrencyInput
-                  required
-                  placeholder="0,00"
-                  value={form.target}
-                  onChange={(v) => setForm(prev => ({ ...prev, target: v }))}
-                  className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
-                             bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
-                             placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Já economizei (R$)
-                </label>
-                <CurrencyInput
-                  placeholder="0,00"
-                  value={form.current}
-                  onChange={(v) => setForm(prev => ({ ...prev, current: v }))}
-                  className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
-                             bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
-                             placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Categoria de Investimento
-                </label>
-                <input
-                  type="text"
-                  list="inv-categories"
-                  placeholder="Nome da meta (padrão)"
-                  value={form.category}
-                  onChange={set('category')}
-                  className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
-                             bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
-                             placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                />
-                <datalist id="inv-categories">
-                  {investmentCategories.map(c => <option key={c} value={c} />)}
-                </datalist>
-                <p className="text-xs text-gray-400 mt-1">
-                  Deixe em branco para criar uma categoria com o nome da meta.
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Data Limite
-                </label>
-                <input
-                  type="date"
-                  value={form.deadline}
-                  onChange={set('deadline')}
-                  className="w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
-                             bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm
-                             focus:outline-none focus:ring-2 focus:ring-violet-400"
-                />
-              </div>
-            </div>
+      {showForm && !editingGoal && (
+        <GoalForm
+          title="Nova Meta de Economia"
+          onSave={handleAdd}
+          onCancel={() => setShowForm(false)}
+          submitLabel="Criar Meta"
+          investmentCategories={investmentCategories}
+        />
+      )}
 
-            {/* Color picker */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Cor da Meta
-              </label>
-              <div className="flex gap-2 flex-wrap">
-                {COLORS.map(c => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setForm(p => ({ ...p, color: c }))}
-                    className={`w-8 h-8 rounded-xl transition-transform hover:scale-110 ${
-                      form.color === c ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-gray-500 scale-110' : ''
-                    }`}
-                    style={{ backgroundColor: c }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="px-4 py-2.5 rounded-2xl border border-gray-200 dark:border-gray-600
-                           text-gray-600 dark:text-gray-400 text-sm font-medium hover:bg-gray-50
-                           dark:hover:bg-gray-700 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-6 py-2.5 rounded-2xl bg-violet-600 hover:bg-violet-700
-                           text-white text-sm font-medium transition-colors"
-              >
-                Criar Meta
-              </button>
-            </div>
-          </form>
-        </div>
+      {editingGoal && (
+        <GoalForm
+          title="Editar Meta"
+          initial={{
+            name: editingGoal.name,
+            target: floatToCents(editingGoal.target),
+            current: floatToCents(editingGoal.current),
+            category: editingGoal.category,
+            color: editingGoal.color,
+            deadline: editingGoal.deadline || '',
+          }}
+          onSave={handleEditSave}
+          onCancel={() => setEditingGoal(null)}
+          submitLabel="Salvar Alterações"
+          investmentCategories={investmentCategories}
+        />
       )}
 
       {/* Goals list */}
@@ -233,17 +217,13 @@ export default function Goals() {
               .reduce((s, t) => s + t.amount, 0);
 
             return (
-              <div
-                key={goal.id}
+              <div key={goal.id}
                 className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100
-                           dark:border-gray-700 hover:shadow-md transition-shadow group"
-              >
+                           dark:border-gray-700 hover:shadow-md transition-shadow group">
                 {/* Card header */}
                 <div className="flex items-start gap-3 mb-4">
-                  <div
-                    className="w-10 h-10 rounded-2xl shrink-0 flex items-center justify-center"
-                    style={{ backgroundColor: `${goal.color}20` }}
-                  >
+                  <div className="w-10 h-10 rounded-2xl shrink-0 flex items-center justify-center"
+                    style={{ backgroundColor: `${goal.color}20` }}>
                     <Target className="w-5 h-5" style={{ color: goal.color }} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -267,18 +247,24 @@ export default function Goals() {
                       </span>
                     )}
                   </div>
-                  <button
-                    onClick={() => setConfirmId(goal.id)}
-                    className="shrink-0 w-8 h-8 rounded-xl flex items-center justify-center opacity-0
-                               group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20
-                               text-gray-400 hover:text-red-500 transition-all"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <button onClick={() => { setEditingGoal(goal); setShowForm(false); }}
+                      className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-blue-50
+                                 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition-colors"
+                      title="Editar">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => setConfirmId(goal.id)}
+                      className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-red-50
+                                 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors"
+                      title="Excluir">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Progress */}
-                <div className="mb-4">
+                <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span className="text-gray-500 dark:text-gray-400">
                       {formatCurrency(goal.current)} <span className="text-gray-400 text-xs">de {formatCurrency(goal.target)}</span>
@@ -286,50 +272,10 @@ export default function Goals() {
                     <span className="font-bold text-gray-900 dark:text-white">{pct.toFixed(1)}%</span>
                   </div>
                   <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${pct}%`, backgroundColor: goal.color }}
-                    />
+                    <div className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${pct}%`, backgroundColor: goal.color }} />
                   </div>
                 </div>
-
-                {/* Manual update */}
-                {editId === goal.id ? (
-                  <div className="flex gap-2">
-                    <CurrencyInput
-                      placeholder="0,00"
-                      value={editAmount}
-                      onChange={setEditAmount}
-                      autoFocus
-                      className="flex-1 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600
-                                 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white
-                                 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                    />
-                    <button
-                      onClick={() => handleEditSave(goal.id)}
-                      className="w-9 h-9 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white
-                                 flex items-center justify-center transition-colors"
-                    >
-                      <Check className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => { setEditId(null); setEditAmount(''); }}
-                      className="w-9 h-9 rounded-xl border border-gray-200 dark:border-gray-600 text-gray-500
-                                 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => { setEditId(goal.id); setEditAmount(floatToCents(goal.current)); }}
-                    className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500
-                               hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
-                  >
-                    <Edit2 className="w-3 h-3" />
-                    Atualizar manualmente
-                  </button>
-                )}
               </div>
             );
           })}

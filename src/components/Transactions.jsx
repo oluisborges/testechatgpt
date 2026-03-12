@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Search, Filter, Pencil, FileText, Paperclip, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Search, Filter, Pencil, FileText, Paperclip, ChevronLeft, ChevronRight, CalendarSearch, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate, getTransactionMonth } from '../utils/formatters';
 import TransactionModal from './TransactionModal';
@@ -26,24 +26,30 @@ export default function Transactions() {
   const [txModalOpen, setTxModalOpen] = useState(false);
   const [editingTx, setEditingTx]     = useState(null);
   const [confirmId, setConfirmId]     = useState(null);
-  const [search, setSearch]           = useState('');
-  const [filterType, setFilterType]   = useState('all');
-  const [page, setPage]               = useState(1);
+  const [search, setSearch]             = useState('');
+  const [filterType, setFilterType]     = useState('all');
+  const [page, setPage]                 = useState(1);
+  const [createdAtFilter, setCreatedAtFilter] = useState('');
 
   const filtered = useMemo(() =>
     data.transactions
       .filter(tx => {
-        const matchMonth  = getTransactionMonth(tx.date) === selectedMonth;
+        if (createdAtFilter) {
+          const txCreatedDate = (tx.createdAt || '').substring(0, 10);
+          if (txCreatedDate !== createdAtFilter) return false;
+        } else {
+          if (getTransactionMonth(tx.date) !== selectedMonth) return false;
+        }
         const matchType   = filterType === 'all' || tx.type === filterType;
         const q           = search.toLowerCase();
         const matchSearch = !search ||
           tx.description.toLowerCase().includes(q) ||
           (tx.category || '').toLowerCase().includes(q) ||
           (tx.notes || '').toLowerCase().includes(q);
-        return matchMonth && matchType && matchSearch;
+        return matchType && matchSearch;
       })
       .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || '').localeCompare(a.createdAt || '')),
-  [data.transactions, selectedMonth, filterType, search]);
+  [data.transactions, selectedMonth, filterType, search, createdAtFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
@@ -100,6 +106,39 @@ export default function Transactions() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Creation date filter */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex items-center">
+          <CalendarSearch className="absolute left-3 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input
+            type="date"
+            value={createdAtFilter}
+            onChange={e => { setCreatedAtFilter(e.target.value); setPage(1); }}
+            title="Filtrar por data de criação"
+            className={`pl-9 pr-4 py-2 rounded-2xl border text-sm transition-all
+                        focus:outline-none focus:ring-2 focus:ring-violet-400
+                        ${createdAtFilter
+                          ? 'border-violet-400 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300'
+                          : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white'}`}
+          />
+        </div>
+        {createdAtFilter ? (
+          <div className="flex items-center gap-1.5 text-xs text-violet-600 dark:text-violet-400 font-medium">
+            <span>Criados em {new Date(createdAtFilter + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
+            <button
+              onClick={() => { setCreatedAtFilter(''); setPage(1); }}
+              className="w-5 h-5 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center
+                         hover:bg-violet-200 dark:hover:bg-violet-800 transition-colors"
+              title="Limpar filtro"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ) : (
+          <span className="text-xs text-gray-400 dark:text-gray-500">Filtrar por data de criação</span>
+        )}
       </div>
 
       {/* Transaction list */}

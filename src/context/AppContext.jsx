@@ -439,6 +439,15 @@ export function AppProvider({ user, children }) {
     }
   }, [user.id, showToast]);
 
+  const updateBudget = useCallback(async (id, updates) => {
+    const { error } = await supabase.from('budgets').update(updates).eq('id', id);
+    if (error) { showToast('Erro ao atualizar orçamento.'); return; }
+    setData(prev => ({
+      ...prev,
+      budgets: prev.budgets.map(b => b.id === id ? { ...b, ...updates } : b),
+    }));
+  }, [showToast]);
+
   const deleteBudget = useCallback(async (id) => {
     const { error } = await supabase.from('budgets').delete().eq('id', id);
     if (error) { showToast('Erro ao excluir orçamento.'); return; }
@@ -622,7 +631,7 @@ export function AppProvider({ user, children }) {
     toggleTheme, setActivePage, setSidebarOpen,
     addTransaction, updateTransaction, deleteTransaction,
     addAccount, updateAccount, deleteAccount,
-    addBudget, deleteBudget, getBudgetSpent,
+    addBudget, updateBudget, deleteBudget, getBudgetSpent,
     addGoal, updateGoal, deleteGoal,
     addCategory,
     addBill, updateBill, deleteBill, payBill,
