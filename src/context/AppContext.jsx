@@ -364,15 +364,25 @@ export function AppProvider({ user, children }) {
     ).select().single();
     if (error) { console.error('addBudget:', error); return; }
 
+    let updatedCategories = null;
     setData(prev => {
       const exists = prev.budgets.find(b => b.category === budget.category);
+      const categories = { ...prev.categories };
+      if (!categories.expense.includes(budget.category)) {
+        categories.expense = [...categories.expense, budget.category];
+        updatedCategories = categories;
+      }
       return {
         ...prev,
         budgets: exists
           ? prev.budgets.map(b => b.category === budget.category ? mapBudget(newBudget) : b)
           : [...prev.budgets, mapBudget(newBudget)],
+        categories,
       };
     });
+    if (updatedCategories) {
+      await supabase.from('user_settings').upsert({ user_id: user.id, categories: updatedCategories });
+    }
   }, [user.id]);
 
   const deleteBudget = useCallback(async (id) => {
