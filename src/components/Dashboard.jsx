@@ -13,7 +13,7 @@ import MonthFilter from './MonthFilter';
 
 const COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#84cc16'];
 
-function SummaryCard({ title, value, icon: Icon, color }) {
+function SummaryCard({ title, value, future, icon: Icon, color }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700
                     hover:shadow-md transition-shadow">
@@ -24,6 +24,13 @@ function SummaryCard({ title, value, icon: Icon, color }) {
         </div>
       </div>
       <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(value)}</p>
+      {future != null && future !== 0 && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+          Futuro: <span className={future > 0 ? 'text-emerald-500' : 'text-red-400'}>
+            {future > 0 ? '+' : ''}{formatCurrency(future)}
+          </span>
+        </p>
+      )}
     </div>
   );
 }
@@ -63,6 +70,7 @@ export default function Dashboard() {
   const {
     data, monthlyBalance, monthlyIncome, monthlyExpenses,
     monthlyInvestments, selectedMonth, setActivePage,
+    futureMonthlyIncome, futureMonthlyExpenses, futureMonthlyInvestments, futureMonthlyBalance,
   } = useApp();
 
   const [txModalOpen, setTxModalOpen] = useState(false);
@@ -150,10 +158,10 @@ export default function Dashboard() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard title="Receitas"       value={monthlyIncome}      icon={TrendingUp}  color="bg-emerald-500" />
-        <SummaryCard title="Despesas"       value={monthlyExpenses}    icon={TrendingDown} color="bg-red-400" />
-        <SummaryCard title="Investido"      value={monthlyInvestments} icon={BarChart3}   color="bg-violet-500" />
-        <SummaryCard title="Saldo em Contas" value={monthlyBalance}    icon={Wallet}      color="bg-blue-500" />
+        <SummaryCard title="Receitas"        value={monthlyIncome}      future={futureMonthlyIncome}        icon={TrendingUp}   color="bg-emerald-500" />
+        <SummaryCard title="Despesas"        value={monthlyExpenses}    future={futureMonthlyExpenses}      icon={TrendingDown} color="bg-red-400" />
+        <SummaryCard title="Investido"       value={monthlyInvestments} future={futureMonthlyInvestments}   icon={BarChart3}    color="bg-violet-500" />
+        <SummaryCard title="Saldo em Contas" value={monthlyBalance}     future={futureMonthlyBalance}       icon={Wallet}       color="bg-blue-500" />
       </div>
 
       {/* Charts row */}

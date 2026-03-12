@@ -168,27 +168,51 @@ export function AppProvider({ user, children }) {
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
   // ── Computed values (memoized) ────────────────────────────────────────────
-  const totalBalance = useMemo(
-    () => data.transactions.reduce((s, t) => {
+  const currentMonth = getCurrentMonth();
+
+  // Only confirmed (non-future) transactions count in official totals
+  const totalBalance = useMemo(() => {
+    const today = new Date().toISOString().substring(0, 10);
+    return data.transactions.filter(t => t.date <= today).reduce((s, t) => {
       if (t.type === 'income') return s + t.amount;
       if (t.type === 'expense') return s - t.amount;
       if (t.type === 'investment') return s - t.amount;
       return s;
-    }, 0),
-    [data.transactions],
-  );
+    }, 0);
+  }, [data.transactions]);
 
-  const totalInvested = useMemo(
-    () => data.transactions.filter(t => t.type === 'investment').reduce((s, t) => s + t.amount, 0),
-    [data.transactions],
-  );
+  const totalInvested = useMemo(() => {
+    const today = new Date().toISOString().substring(0, 10);
+    return data.transactions.filter(t => t.type === 'investment' && t.date <= today).reduce((s, t) => s + t.amount, 0);
+  }, [data.transactions]);
 
-  const currentMonth = getCurrentMonth();
+  // Future-dated totals (all time)
+  const futureTotalBalanceDelta = useMemo(() => {
+    const today = new Date().toISOString().substring(0, 10);
+    return data.transactions.filter(t => t.date > today).reduce((s, t) => {
+      if (t.type === 'income') return s + t.amount;
+      if (t.type === 'expense') return s - t.amount;
+      if (t.type === 'investment') return s - t.amount;
+      return s;
+    }, 0);
+  }, [data.transactions]);
 
-  const selectedMonthTxs = useMemo(
-    () => data.transactions.filter(t => getTransactionMonth(t.date) === selectedMonth),
-    [data.transactions, selectedMonth],
-  );
+  const futureTotalInvested = useMemo(() => {
+    const today = new Date().toISOString().substring(0, 10);
+    return data.transactions.filter(t => t.type === 'investment' && t.date > today).reduce((s, t) => s + t.amount, 0);
+  }, [data.transactions]);
+
+  // Monthly: only non-future transactions
+  const selectedMonthTxs = useMemo(() => {
+    const today = new Date().toISOString().substring(0, 10);
+    return data.transactions.filter(t => getTransactionMonth(t.date) === selectedMonth && t.date <= today);
+  }, [data.transactions, selectedMonth]);
+
+  // Monthly future transactions (same month, future date)
+  const futureMonthTxs = useMemo(() => {
+    const today = new Date().toISOString().substring(0, 10);
+    return data.transactions.filter(t => getTransactionMonth(t.date) === selectedMonth && t.date > today);
+  }, [data.transactions, selectedMonth]);
 
   const monthlyIncome = useMemo(
     () => selectedMonthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
@@ -208,6 +232,26 @@ export function AppProvider({ user, children }) {
   const monthlyBalance = useMemo(
     () => monthlyIncome - monthlyExpenses - monthlyInvestments,
     [monthlyIncome, monthlyExpenses, monthlyInvestments],
+  );
+
+  const futureMonthlyIncome = useMemo(
+    () => futureMonthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0),
+    [futureMonthTxs],
+  );
+
+  const futureMonthlyExpenses = useMemo(
+    () => futureMonthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
+    [futureMonthTxs],
+  );
+
+  const futureMonthlyInvestments = useMemo(
+    () => futureMonthTxs.filter(t => t.type === 'investment').reduce((s, t) => s + t.amount, 0),
+    [futureMonthTxs],
+  );
+
+  const futureMonthlyBalance = useMemo(
+    () => futureMonthlyIncome - futureMonthlyExpenses - futureMonthlyInvestments,
+    [futureMonthlyIncome, futureMonthlyExpenses, futureMonthlyInvestments],
   );
 
   // ── Budget alert helper ───────────────────────────────────────────────────
@@ -625,8 +669,10 @@ export function AppProvider({ user, children }) {
   const value = {
     data, loading, theme, activePage, sidebarOpen,
     totalBalance, totalInvested, currentMonth,
+    futureTotalBalanceDelta, futureTotalInvested,
     selectedMonth, setSelectedMonth,
     monthlyIncome, monthlyExpenses, monthlyInvestments, monthlyBalance,
+    futureMonthlyIncome, futureMonthlyExpenses, futureMonthlyInvestments, futureMonthlyBalance,
     PAYMENT_METHODS,
     toggleTheme, setActivePage, setSidebarOpen,
     addTransaction, updateTransaction, deleteTransaction,

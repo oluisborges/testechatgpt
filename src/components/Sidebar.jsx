@@ -22,7 +22,7 @@ const BOTTOM_NAV = [
 ];
 
 export default function Sidebar() {
-  const { activePage, setActivePage, sidebarOpen, setSidebarOpen, totalBalance, totalInvested, data } = useApp();
+  const { activePage, setActivePage, sidebarOpen, setSidebarOpen, totalBalance, totalInvested, futureTotalBalanceDelta, futureTotalInvested, data } = useApp();
   const { user } = useAuth();
 
   const urgentBills = (data.bills || []).filter(b => b.status === 'pending' && getDueDiff(b.dueDate) < 0).length;
@@ -78,6 +78,11 @@ export default function Sidebar() {
               <span className="text-xs font-medium opacity-80">Saldo Total</span>
             </div>
             <p className="text-lg font-bold leading-tight">{formatCurrency(totalBalance)}</p>
+            {futureTotalBalanceDelta !== 0 && (
+              <p className="text-xs mt-0.5 opacity-75">
+                Futuro: {futureTotalBalanceDelta > 0 ? '+' : ''}{formatCurrency(futureTotalBalanceDelta)}
+              </p>
+            )}
           </div>
 
           <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl px-4 py-3 border border-gray-100 dark:border-gray-700">
@@ -86,6 +91,11 @@ export default function Sidebar() {
               <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Total Investido</span>
             </div>
             <p className="text-lg font-bold leading-tight text-emerald-600 dark:text-emerald-400">{formatCurrency(totalInvested)}</p>
+            {futureTotalInvested > 0 && (
+              <p className="text-xs text-emerald-500/70 mt-0.5">
+                Futuro: +{formatCurrency(futureTotalInvested)}
+              </p>
+            )}
           </div>
         </div>
 
