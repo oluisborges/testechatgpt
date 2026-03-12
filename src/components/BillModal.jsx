@@ -9,14 +9,13 @@ const INPUT_CLASS = `w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:
   focus:outline-none focus:ring-2 focus:ring-violet-400 dark:focus:ring-violet-500
   transition-shadow text-sm`;
 
-// { key, label, interval (months), totalOccurrences (extra bills beyond the first) }
 const RECURRENCE_OPTIONS = [
-  { key: '',          label: 'Não repete',  interval: 0, extra: 0 },
-  { key: 'mensal',    label: 'Mensal',      interval: 1, extra: 11 },
-  { key: 'bimestral', label: 'Bimestral',   interval: 2, extra: 5  },
-  { key: 'trimestral',label: 'Trimestral',  interval: 3, extra: 3  },
-  { key: 'semestral', label: 'Semestral',   interval: 6, extra: 1  },
-  { key: 'anual',     label: 'Anual',       interval: 12, extra: 1 },
+  { key: '',           label: 'Não repete', interval: 0 },
+  { key: 'mensal',     label: 'Mensal',     interval: 1 },
+  { key: 'bimestral',  label: 'Bimestral',  interval: 2 },
+  { key: 'trimestral', label: 'Trimestral', interval: 3 },
+  { key: 'semestral',  label: 'Semestral',  interval: 6 },
+  { key: 'anual',      label: 'Anual',      interval: 12 },
 ];
 
 function addMonthsToDate(dateStr, n) {
@@ -25,21 +24,18 @@ function addMonthsToDate(dateStr, n) {
   return d.toISOString().substring(0, 10);
 }
 
+const EMPTY_FORM = {
+  name: '', amount: '', dueDate: formatDateInput(new Date()),
+  category: 'Outros', paymentMethod: 'Pix', accountId: '', pixKey: '',
+  recurrence: '', recurrenceTimes: '12',
+};
+
 export default function BillModal({ isOpen, onClose, bill = null }) {
   const { data, addBill, updateBill, PAYMENT_METHODS } = useApp();
   const isEdit = !!bill;
   const fileRef = useRef(null);
 
-  const [form, setForm] = useState({
-    name: '',
-    amount: '',
-    dueDate: formatDateInput(new Date()),
-    category: 'Outros',
-    paymentMethod: 'Pix',
-    accountId: '',
-    pixKey: '',
-    recurrence: '',
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -56,19 +52,11 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
         accountId: bill.accountId || '',
         pixKey: bill.pixKey || '',
         recurrence: '',
+        recurrenceTimes: '12',
       });
     } else {
       const defaultAccount = data.accounts.find(a => a.name === 'Banco Principal') || data.accounts[0];
-      setForm({
-        name: '',
-        amount: '',
-        dueDate: formatDateInput(new Date()),
-        category: 'Outros',
-        paymentMethod: 'Pix',
-        accountId: defaultAccount?.id || '',
-        pixKey: '',
-        recurrence: '',
-      });
+      setForm({ ...EMPTY_FORM, accountId: defaultAccount?.id || '' });
     }
     setFile(null);
     setSaveError('');
@@ -78,16 +66,29 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
 
   const set = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
 
+  const recurrenceOpt = RECURRENCE_OPTIONS.find(o => o.key === form.recurrence);
+  const times = Math.max(1, Math.min(60, parseInt(form.recurrenceTimes) || 1));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name || !form.amount || !form.dueDate) return;
     setSaving(true);
     setSaveError('');
-    const { recurrence, ...rest } = form;
+    const { recurrence, recurrenceTimes, ...rest } = form;
     const basePayload = { ...rest, amount: centsToFloat(form.amount) };
 
     if (isEdit) {
       await updateBill(bill.id, basePayload, file);
+      // If recurrence set on edit, create future copies from next period
+      if (recurrence && recurrenceOpt?.interval > 0) {
+        for (let i = 1; i <= times; i++) {
+          await addBill({
+            ...basePayload,
+            dueDate: addMonthsToDate(form.dueDate, recurrenceOpt.interval * i),
+            pixKey: '',
+          }, null);
+        }
+      }
       setSaving(false);
       onClose();
       return;
@@ -101,18 +102,14 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
       return;
     }
 
-    // Create recurring copies (no pixKey, no file)
-    if (recurrence) {
-      const opt = RECURRENCE_OPTIONS.find(o => o.key === recurrence);
-      if (opt && opt.interval > 0) {
-        for (let i = 1; i <= opt.extra; i++) {
-          const recurringPayload = {
-            ...basePayload,
-            dueDate: addMonthsToDate(form.dueDate, opt.interval * i),
-            pixKey: '', // never carry over pix key
-          };
-          await addBill(recurringPayload, null);
-        }
+    // Recurring copies (no pixKey, no file)
+    if (recurrence && recurrenceOpt?.interval > 0) {
+      for (let i = 1; i <= times; i++) {
+        await addBill({
+          ...basePayload,
+          dueDate: addMonthsToDate(form.dueDate, recurrenceOpt.interval * i),
+          pixKey: '',
+        }, null);
       }
     }
 
@@ -185,27 +182,46 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
             </div>
           </div>
 
-          {/* Recurrence — only for new bills */}
-          {!isEdit && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                <span className="flex items-center gap-1.5"><Repeat className="w-3.5 h-3.5" /> Recorrência</span>
-              </label>
-              <select value={form.recurrence} onChange={set('recurrence')} className={INPUT_CLASS}>
-                {RECURRENCE_OPTIONS.map(o => (
-                  <option key={o.key} value={o.key}>{o.label}</option>
-                ))}
-              </select>
-              {form.recurrence && (
-                <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
-                  {(() => {
-                    const opt = RECURRENCE_OPTIONS.find(o => o.key === form.recurrence);
-                    return opt ? `Serão criadas ${opt.extra + 1} contas no total (esta + ${opt.extra} cópias). A chave Pix não será copiada.` : '';
-                  })()}
-                </p>
-              )}
-            </div>
-          )}
+          {/* Recurrence — available for both create and edit */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              <span className="flex items-center gap-1.5"><Repeat className="w-3.5 h-3.5" /> Recorrência</span>
+            </label>
+            <select value={form.recurrence} onChange={set('recurrence')} className={INPUT_CLASS}>
+              {RECURRENCE_OPTIONS.map(o => (
+                <option key={o.key} value={o.key}>{o.label}</option>
+              ))}
+            </select>
+
+            {form.recurrence && (
+              <div className="mt-3 flex items-center gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Quantas vezes vai se repetir
+                  </label>
+                  <input
+                    type="number" min="1" max="60"
+                    value={form.recurrenceTimes}
+                    onChange={set('recurrenceTimes')}
+                    className={INPUT_CLASS}
+                  />
+                </div>
+                <div className="shrink-0 pt-5">
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    = {times + (isEdit ? 0 : 1)} conta{(times + (isEdit ? 0 : 1)) !== 1 ? 's' : ''} no total
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {form.recurrence && (
+              <p className="text-xs text-violet-600 dark:text-violet-400 mt-1.5">
+                {isEdit
+                  ? `${times} cópia${times !== 1 ? 's' : ''} serão criadas após esta conta. A chave Pix não será copiada.`
+                  : `Esta conta + ${times} cópia${times !== 1 ? 's' : ''} serão criadas. A chave Pix não será copiada.`}
+              </p>
+            )}
+          </div>
 
           {/* Pix key — show only when payment is Pix */}
           {form.paymentMethod === 'Pix' && (
