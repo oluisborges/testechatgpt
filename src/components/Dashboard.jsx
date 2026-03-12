@@ -61,7 +61,7 @@ const renderSliceLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent 
 
 export default function Dashboard() {
   const {
-    data, totalBalance, monthlyIncome, monthlyExpenses,
+    data, monthlyBalance, monthlyIncome, monthlyExpenses,
     monthlyInvestments, selectedMonth, setActivePage,
   } = useApp();
 
@@ -152,7 +152,7 @@ export default function Dashboard() {
         <SummaryCard title="Receitas"       value={monthlyIncome}      icon={TrendingUp}  color="bg-emerald-500" />
         <SummaryCard title="Despesas"       value={monthlyExpenses}    icon={TrendingDown} color="bg-red-400" />
         <SummaryCard title="Investido"      value={monthlyInvestments} icon={BarChart3}   color="bg-violet-500" />
-        <SummaryCard title="Saldo em Contas" value={totalBalance}      icon={Wallet}      color="bg-blue-500" />
+        <SummaryCard title="Saldo em Contas" value={monthlyBalance}    icon={Wallet}      color="bg-blue-500" />
       </div>
 
       {/* Charts row */}

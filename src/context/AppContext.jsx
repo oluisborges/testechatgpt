@@ -169,8 +169,13 @@ export function AppProvider({ user, children }) {
 
   // ── Computed values (memoized) ────────────────────────────────────────────
   const totalBalance = useMemo(
-    () => data.accounts.reduce((s, a) => s + a.balance, 0),
-    [data.accounts],
+    () => data.transactions.reduce((s, t) => {
+      if (t.type === 'income') return s + t.amount;
+      if (t.type === 'expense') return s - t.amount;
+      if (t.type === 'investment') return s - t.amount;
+      return s;
+    }, 0),
+    [data.transactions],
   );
 
   const totalInvested = useMemo(
@@ -198,6 +203,11 @@ export function AppProvider({ user, children }) {
   const monthlyInvestments = useMemo(
     () => selectedMonthTxs.filter(t => t.type === 'investment').reduce((s, t) => s + t.amount, 0),
     [selectedMonthTxs],
+  );
+
+  const monthlyBalance = useMemo(
+    () => monthlyIncome - monthlyExpenses - monthlyInvestments,
+    [monthlyIncome, monthlyExpenses, monthlyInvestments],
   );
 
   // ── Budget alert helper ───────────────────────────────────────────────────
@@ -607,7 +617,7 @@ export function AppProvider({ user, children }) {
     data, loading, theme, activePage, sidebarOpen,
     totalBalance, totalInvested, currentMonth,
     selectedMonth, setSelectedMonth,
-    monthlyIncome, monthlyExpenses, monthlyInvestments,
+    monthlyIncome, monthlyExpenses, monthlyInvestments, monthlyBalance,
     PAYMENT_METHODS,
     toggleTheme, setActivePage, setSidebarOpen,
     addTransaction, updateTransaction, deleteTransaction,
