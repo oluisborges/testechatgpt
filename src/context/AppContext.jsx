@@ -89,10 +89,8 @@ export function AppProvider({ user, children }) {
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
   // ── Computed ──────────────────────────────────────────────────────────────
-  // totalBalance: all-time net (income − expense − investment) — independent of month filter
-  const totalBalance = data.transactions.reduce(
-    (s, t) => t.type === 'income' ? s + t.amount : s - t.amount, 0
-  );
+  // totalBalance: sum of actual account balances (source of truth)
+  const totalBalance = data.accounts.reduce((s, a) => s + a.balance, 0);
   // totalInvested: all-time sum of investment transactions
   const totalInvested = data.transactions
     .filter(t => t.type === 'investment')
