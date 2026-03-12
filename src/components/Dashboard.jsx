@@ -116,6 +116,7 @@ export default function Dashboard() {
   // ── Recent transactions ───────────────────────────────────────────────────
   const recentTx = data.transactions
     .filter(t => getTransactionMonth(t.date) === selectedMonth)
+    .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 5);
 
   const txTypeStyle = {

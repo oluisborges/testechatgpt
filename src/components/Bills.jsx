@@ -40,7 +40,7 @@ function StatusBadge({ bill }) {
   return (
     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold
                      bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-      <Clock className="w-3 h-3" /> Vence em {diff} dias
+      <Clock className="w-3 h-3" /> Vence em {diff} dia{diff !== 1 ? 's' : ''}
     </span>
   );
 }
