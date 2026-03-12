@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Search, Filter, Pencil, FileText, Paperclip, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Search, Filter, Pencil, FileText, Paperclip, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate, getTransactionMonth, getPrevMonth, getNextMonth, getMonthLabel } from '../utils/formatters';
 import TransactionModal from './TransactionModal';
@@ -183,21 +183,32 @@ export default function Transactions() {
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
             {paginated.map(tx => {
-              const account = getAccount(tx.accountId);
+              const account  = getAccount(tx.accountId);
+              const today    = new Date().toISOString().substring(0, 10);
+              const isFuture = tx.date > today;
               return (
                 <div key={tx.id}
-                  className="flex items-start gap-3 px-4 py-3.5
-                             hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                  className={`flex items-start gap-3 px-4 py-3.5 transition-colors
+                              ${isFuture
+                                ? 'bg-gray-50/60 dark:bg-gray-700/10 hover:bg-gray-100/60 dark:hover:bg-gray-700/20'
+                                : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'}`}>
 
                   {/* Type badge — fixed width */}
-                  <div className={`shrink-0 px-2.5 py-1 rounded-xl text-xs font-semibold mt-0.5 ${TYPE_STYLES[tx.type]}`}>
+                  <div className={`shrink-0 px-2.5 py-1 rounded-xl text-xs font-semibold mt-0.5 ${isFuture ? 'opacity-60' : ''} ${TYPE_STYLES[tx.type]}`}>
                     {TYPE_LABELS[tx.type]}
                   </div>
 
                   {/* Description + meta — grows */}
-                  <div className="flex-1 min-w-0">
+                  <div className={`flex-1 min-w-0 ${isFuture ? 'opacity-70' : ''}`}>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="font-medium text-gray-900 dark:text-white text-sm">{tx.description}</p>
+                      {isFuture && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg
+                                         bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400
+                                         text-xs font-medium">
+                          <Clock className="w-3 h-3" /> Futuro
+                        </span>
+                      )}
                       {tx.notes && (
                         <span title={tx.notes}>
                           <FileText className="w-3 h-3 text-gray-400 shrink-0" />
@@ -222,7 +233,7 @@ export default function Transactions() {
 
                   {/* Right side: amount + actions */}
                   <div className="shrink-0 flex flex-col items-end gap-1.5">
-                    <span className={`text-sm font-bold ${AMOUNT_STYLES[tx.type]}`}>
+                    <span className={`text-sm font-bold ${isFuture ? 'opacity-60' : ''} ${AMOUNT_STYLES[tx.type]}`}>
                       {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
                     </span>
 

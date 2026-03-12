@@ -3,17 +3,25 @@ import {
   AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { TrendingUp, TrendingDown, Wallet, BarChart3, Plus, ArrowRight, ChevronLeft } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, BarChart3, Plus, ArrowRight, ChevronLeft, Clock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
-  formatCurrency, formatDate, getLast6MonthsFrom, getMonthName, getTransactionMonth,
+  formatCurrency, formatDate, getLast6MonthsFrom, getMonthName, getTransactionMonth, getCurrentMonth,
 } from '../utils/formatters';
 import TransactionModal from './TransactionModal';
 import MonthFilter from './MonthFilter';
 
 const COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316', '#84cc16'];
 
-function SummaryCard({ title, value, future, icon: Icon, color }) {
+// futureColor: 'danger' = always red | 'success' = always green | 'auto' = sign-based
+function SummaryCard({ title, value, future, futureColor = 'auto', icon: Icon, color }) {
+  const futureColorClass = future == null || future === 0 ? '' :
+    futureColor === 'danger'  ? 'text-red-400' :
+    futureColor === 'success' ? 'text-emerald-500' :
+    future > 0 ? 'text-emerald-500' : 'text-red-400';
+
+  const futureSign = futureColor === 'danger' ? '+' : future > 0 ? '+' : '';
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700
                     hover:shadow-md transition-shadow">
@@ -25,11 +33,14 @@ function SummaryCard({ title, value, future, icon: Icon, color }) {
       </div>
       <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(value)}</p>
       {future != null && future !== 0 && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-          Futuro: <span className={future > 0 ? 'text-emerald-500' : 'text-red-400'}>
-            {future > 0 ? '+' : ''}{formatCurrency(future)}
+        <div className="flex items-center gap-1 mt-1.5">
+          <Clock className="w-3 h-3 text-gray-400" />
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            Futuro: <span className={futureColorClass}>
+              {futureSign}{formatCurrency(future)}
+            </span>
           </span>
-        </p>
+        </div>
       )}
     </div>
   );
@@ -72,6 +83,7 @@ export default function Dashboard() {
     monthlyInvestments, selectedMonth, setActivePage,
     futureMonthlyIncome, futureMonthlyExpenses, futureMonthlyInvestments, futureMonthlyBalance,
   } = useApp();
+  const isCurrentMonth = selectedMonth === getCurrentMonth();
 
   const [txModalOpen, setTxModalOpen] = useState(false);
   const [pieView, setPieView] = useState('expense');
@@ -158,10 +170,10 @@ export default function Dashboard() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard title="Receitas"        value={monthlyIncome}      future={futureMonthlyIncome}        icon={TrendingUp}   color="bg-emerald-500" />
-        <SummaryCard title="Despesas"        value={monthlyExpenses}    future={futureMonthlyExpenses}      icon={TrendingDown} color="bg-red-400" />
-        <SummaryCard title="Investido"       value={monthlyInvestments} future={futureMonthlyInvestments}   icon={BarChart3}    color="bg-violet-500" />
-        <SummaryCard title="Saldo em Contas" value={monthlyBalance}     future={futureMonthlyBalance}       icon={Wallet}       color="bg-blue-500" />
+        <SummaryCard title="Receitas"        value={monthlyIncome}      future={isCurrentMonth ? futureMonthlyIncome        : null} futureColor="success" icon={TrendingUp}   color="bg-emerald-500" />
+        <SummaryCard title="Despesas"        value={monthlyExpenses}    future={isCurrentMonth ? futureMonthlyExpenses      : null} futureColor="danger"  icon={TrendingDown} color="bg-red-400" />
+        <SummaryCard title="Investido"       value={monthlyInvestments} future={isCurrentMonth ? futureMonthlyInvestments   : null} futureColor="danger"  icon={BarChart3}    color="bg-violet-500" />
+        <SummaryCard title="Saldo em Contas" value={monthlyBalance}     future={isCurrentMonth ? futureMonthlyBalance       : null} futureColor="auto"    icon={Wallet}       color="bg-blue-500" />
       </div>
 
       {/* Charts row */}
