@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Search, Filter, Pencil, FileText, Paperclip, ChevronLeft, ChevronRight, Clock, CalendarDays } from 'lucide-react';
+import { Plus, Trash2, Search, Filter, Pencil, FileText, Paperclip, ChevronLeft, ChevronRight, Clock, RotateCcw } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate, getTransactionMonth, getPrevMonth, getNextMonth, getMonthLabel, getCurrentMonth } from '../utils/formatters';
 import TransactionModal from './TransactionModal';
@@ -105,25 +105,29 @@ export default function Transactions() {
             </div>
 
             {/* Month navigator — always visible */}
-            <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-2 py-1.5">
-              <button onClick={() => { setSelectedMonth(getPrevMonth(selectedMonth)); setPage(1); }}
-                className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                <ChevronLeft className="w-4 h-4 text-gray-500" />
-              </button>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-32 text-center select-none">
-                {getMonthLabel(selectedMonth)}
-              </span>
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-2 py-1.5">
+                <button onClick={() => { setSelectedMonth(getPrevMonth(selectedMonth)); setPage(1); }}
+                  className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <ChevronLeft className="w-4 h-4 text-gray-500" />
+                </button>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-32 text-center select-none">
+                  {getMonthLabel(selectedMonth)}
+                </span>
+                <button onClick={() => { setSelectedMonth(getNextMonth(selectedMonth)); setPage(1); }}
+                  className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
               {selectedMonth !== getCurrentMonth() && (
                 <button onClick={() => { setSelectedMonth(getCurrentMonth()); setPage(1); }}
                   title="Voltar ao mês atual"
-                  className="w-5 h-5 flex items-center justify-center rounded-lg text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors">
-                  <CalendarDays className="w-3.5 h-3.5" />
+                  className="w-7 h-7 flex items-center justify-center rounded-xl border border-violet-200 dark:border-violet-700
+                             bg-violet-50 dark:bg-violet-900/20 text-violet-500 dark:text-violet-400
+                             hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors">
+                  <RotateCcw className="w-3.5 h-3.5" />
                 </button>
               )}
-              <button onClick={() => { setSelectedMonth(getNextMonth(selectedMonth)); setPage(1); }}
-                className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                <ChevronRight className="w-4 h-4 text-gray-500" />
-              </button>
             </div>
 
             {/* Date picker — only in "created" mode */}

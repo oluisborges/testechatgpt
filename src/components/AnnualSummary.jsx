@@ -1,7 +1,7 @@
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { TrendingUp, TrendingDown, BarChart3, Wallet, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart3, Wallet, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, getTransactionMonth } from '../utils/formatters';
@@ -92,30 +92,34 @@ export default function AnnualSummary() {
           <p className="text-sm text-gray-500 dark:text-gray-400">Visão consolidada do ano</p>
         </div>
         {/* Year selector */}
-        <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-3 py-2">
-          <button
-            onClick={() => setYear(y => y - 1)}
-            className="w-7 h-7 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4 text-gray-500" />
-          </button>
-          <span className="text-sm font-semibold text-gray-900 dark:text-white w-12 text-center">{year}</span>
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-3 py-2">
+            <button
+              onClick={() => setYear(y => y - 1)}
+              className="w-7 h-7 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4 text-gray-500" />
+            </button>
+            <span className="text-sm font-semibold text-gray-900 dark:text-white w-12 text-center">{year}</span>
+            <button
+              onClick={() => setYear(y => y + 1)}
+              disabled={year >= currentYear}
+              className="w-7 h-7 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
           {year !== currentYear && (
             <button
               onClick={() => setYear(currentYear)}
               title="Voltar ao ano atual"
-              className="w-5 h-5 flex items-center justify-center rounded-lg text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+              className="w-7 h-7 flex items-center justify-center rounded-xl border border-violet-200 dark:border-violet-700
+                         bg-violet-50 dark:bg-violet-900/20 text-violet-500 dark:text-violet-400
+                         hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors"
             >
-              <CalendarDays className="w-3.5 h-3.5" />
+              <RotateCcw className="w-3.5 h-3.5" />
             </button>
           )}
-          <button
-            onClick={() => setYear(y => y + 1)}
-            disabled={year >= currentYear}
-            className="w-7 h-7 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <ChevronRight className="w-4 h-4 text-gray-500" />
-          </button>
         </div>
       </div>
 

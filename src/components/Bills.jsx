@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
   Plus, Trash2, Pencil, CheckCircle2, Copy, ExternalLink,
-  Paperclip, AlertCircle, Clock, CheckCheck, Receipt, ChevronLeft, ChevronRight, CalendarDays,
+  Paperclip, AlertCircle, Clock, CheckCheck, Receipt, ChevronLeft, ChevronRight, RotateCcw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate, getCurrentMonth, getPrevMonth, getNextMonth, getMonthLabel, getDueDiff } from '../utils/formatters';
@@ -148,28 +148,32 @@ export default function Bills() {
         </div>
         <div className="flex items-center gap-3">
           {/* Month navigator */}
-          <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200
-                          dark:border-gray-700 rounded-2xl px-2 py-1.5">
-            <button onClick={() => setBillsMonth(getPrevMonth(billsMonth))}
-              className="w-7 h-7 rounded-xl flex items-center justify-center
-                         hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-              <ChevronLeft className="w-4 h-4 text-gray-500" />
-            </button>
-            <span className="text-sm font-medium text-gray-900 dark:text-white w-24 sm:w-28 text-center capitalize truncate">
-              {getMonthLabel(billsMonth)}
-            </span>
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200
+                            dark:border-gray-700 rounded-2xl px-2 py-1.5">
+              <button onClick={() => setBillsMonth(getPrevMonth(billsMonth))}
+                className="w-7 h-7 rounded-xl flex items-center justify-center
+                           hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <ChevronLeft className="w-4 h-4 text-gray-500" />
+              </button>
+              <span className="text-sm font-medium text-gray-900 dark:text-white w-24 sm:w-28 text-center capitalize truncate">
+                {getMonthLabel(billsMonth)}
+              </span>
+              <button onClick={() => setBillsMonth(getNextMonth(billsMonth))}
+                className="w-7 h-7 rounded-xl flex items-center justify-center
+                           hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
             {billsMonth !== getCurrentMonth() && (
               <button onClick={() => setBillsMonth(getCurrentMonth())}
                 title="Voltar ao mês atual"
-                className="w-5 h-5 flex items-center justify-center rounded-lg text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors">
-                <CalendarDays className="w-3.5 h-3.5" />
+                className="w-7 h-7 flex items-center justify-center rounded-xl border border-violet-200 dark:border-violet-700
+                           bg-violet-50 dark:bg-violet-900/20 text-violet-500 dark:text-violet-400
+                           hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors">
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             )}
-            <button onClick={() => setBillsMonth(getNextMonth(billsMonth))}
-              className="w-7 h-7 rounded-xl flex items-center justify-center
-                         hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-              <ChevronRight className="w-4 h-4 text-gray-500" />
-            </button>
           </div>
           <button onClick={() => { setEditingBill(null); setModalOpen(true); }}
             className="flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700
