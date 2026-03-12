@@ -116,7 +116,7 @@ export default function Bills() {
     { id: 'pending', label: 'A Vencer', count: pending.length },
     { id: 'overdue', label: 'Vencidas', count: overdue.length },
     { id: 'paid',    label: 'Pagas',    count: paid.length },
-    { id: 'all',     label: 'Todas',    count: data.bills.length },
+    { id: 'all',     label: 'Todas',    count: monthBills.length },
   ];
 
   return (
