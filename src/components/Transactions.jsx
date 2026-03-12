@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Plus, Trash2, Search, Filter, Pencil, FileText, Paperclip, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { Plus, Trash2, Search, Filter, Pencil, FileText, Paperclip, ChevronLeft, ChevronRight, Clock, CalendarDays } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { formatCurrency, formatDate, getTransactionMonth, getPrevMonth, getNextMonth, getMonthLabel } from '../utils/formatters';
+import { formatCurrency, formatDate, getTransactionMonth, getPrevMonth, getNextMonth, getMonthLabel, getCurrentMonth } from '../utils/formatters';
 import TransactionModal from './TransactionModal';
 import ConfirmModal from './ConfirmModal';
 
@@ -113,6 +113,13 @@ export default function Transactions() {
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300 capitalize min-w-32 text-center select-none">
                 {getMonthLabel(selectedMonth)}
               </span>
+              {selectedMonth !== getCurrentMonth() && (
+                <button onClick={() => { setSelectedMonth(getCurrentMonth()); setPage(1); }}
+                  title="Voltar ao mês atual"
+                  className="w-5 h-5 flex items-center justify-center rounded-lg text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors">
+                  <CalendarDays className="w-3.5 h-3.5" />
+                </button>
+              )}
               <button onClick={() => { setSelectedMonth(getNextMonth(selectedMonth)); setPage(1); }}
                 className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                 <ChevronRight className="w-4 h-4 text-gray-500" />

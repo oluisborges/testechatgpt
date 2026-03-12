@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Upload, Paperclip, RefreshCw } from 'lucide-react';
+import { X, Upload, Paperclip, RefreshCw, Repeat } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatDateInput } from '../utils/formatters';
 import CurrencyInput, { centsToFloat, floatToCents } from './CurrencyInput';
@@ -8,6 +8,22 @@ const INPUT_CLASS = `w-full px-4 py-2.5 rounded-2xl border border-gray-200 dark:
   bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400
   focus:outline-none focus:ring-2 focus:ring-violet-400 dark:focus:ring-violet-500
   transition-shadow text-sm`;
+
+// { key, label, interval (months), totalOccurrences (extra bills beyond the first) }
+const RECURRENCE_OPTIONS = [
+  { key: '',          label: 'Não repete',  interval: 0, extra: 0 },
+  { key: 'mensal',    label: 'Mensal',      interval: 1, extra: 11 },
+  { key: 'bimestral', label: 'Bimestral',   interval: 2, extra: 5  },
+  { key: 'trimestral',label: 'Trimestral',  interval: 3, extra: 3  },
+  { key: 'semestral', label: 'Semestral',   interval: 6, extra: 1  },
+  { key: 'anual',     label: 'Anual',       interval: 12, extra: 1 },
+];
+
+function addMonthsToDate(dateStr, n) {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setMonth(d.getMonth() + n);
+  return d.toISOString().substring(0, 10);
+}
 
 export default function BillModal({ isOpen, onClose, bill = null }) {
   const { data, addBill, updateBill, PAYMENT_METHODS } = useApp();
@@ -22,6 +38,7 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
     paymentMethod: 'Pix',
     accountId: '',
     pixKey: '',
+    recurrence: '',
   });
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -38,6 +55,7 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
         paymentMethod: bill.paymentMethod || 'Pix',
         accountId: bill.accountId || '',
         pixKey: bill.pixKey || '',
+        recurrence: '',
       });
     } else {
       const defaultAccount = data.accounts.find(a => a.name === 'Banco Principal') || data.accounts[0];
@@ -49,6 +67,7 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
         paymentMethod: 'Pix',
         accountId: defaultAccount?.id || '',
         pixKey: '',
+        recurrence: '',
       });
     }
     setFile(null);
@@ -64,20 +83,41 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
     if (!form.name || !form.amount || !form.dueDate) return;
     setSaving(true);
     setSaveError('');
-    const payload = { ...form, amount: centsToFloat(form.amount) };
+    const { recurrence, ...rest } = form;
+    const basePayload = { ...rest, amount: centsToFloat(form.amount) };
+
     if (isEdit) {
-      await updateBill(bill.id, payload, file);
+      await updateBill(bill.id, basePayload, file);
       setSaving(false);
       onClose();
-    } else {
-      const ok = await addBill(payload, file);
+      return;
+    }
+
+    // New bill
+    const ok = await addBill(basePayload, file);
+    if (!ok) {
       setSaving(false);
-      if (ok) {
-        onClose();
-      } else {
-        setSaveError('Não foi possível salvar. Verifique se a migration da tabela bills foi executada no Supabase.');
+      setSaveError('Não foi possível salvar. Verifique se a migration da tabela bills foi executada no Supabase.');
+      return;
+    }
+
+    // Create recurring copies (no pixKey, no file)
+    if (recurrence) {
+      const opt = RECURRENCE_OPTIONS.find(o => o.key === recurrence);
+      if (opt && opt.interval > 0) {
+        for (let i = 1; i <= opt.extra; i++) {
+          const recurringPayload = {
+            ...basePayload,
+            dueDate: addMonthsToDate(form.dueDate, opt.interval * i),
+            pixKey: '', // never carry over pix key
+          };
+          await addBill(recurringPayload, null);
+        }
       }
     }
+
+    setSaving(false);
+    onClose();
   };
 
   const expenseCategories = data.categories.expense || [];
@@ -144,6 +184,28 @@ export default function BillModal({ isOpen, onClose, bill = null }) {
               </select>
             </div>
           </div>
+
+          {/* Recurrence — only for new bills */}
+          {!isEdit && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                <span className="flex items-center gap-1.5"><Repeat className="w-3.5 h-3.5" /> Recorrência</span>
+              </label>
+              <select value={form.recurrence} onChange={set('recurrence')} className={INPUT_CLASS}>
+                {RECURRENCE_OPTIONS.map(o => (
+                  <option key={o.key} value={o.key}>{o.label}</option>
+                ))}
+              </select>
+              {form.recurrence && (
+                <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
+                  {(() => {
+                    const opt = RECURRENCE_OPTIONS.find(o => o.key === form.recurrence);
+                    return opt ? `Serão criadas ${opt.extra + 1} contas no total (esta + ${opt.extra} cópias). A chave Pix não será copiada.` : '';
+                  })()}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Pix key — show only when payment is Pix */}
           {form.paymentMethod === 'Pix' && (

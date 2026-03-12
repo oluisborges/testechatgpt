@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
   Plus, Trash2, Pencil, CheckCircle2, Copy, ExternalLink,
-  Paperclip, AlertCircle, Clock, CheckCheck, Receipt, ChevronLeft, ChevronRight,
+  Paperclip, AlertCircle, Clock, CheckCheck, Receipt, ChevronLeft, ChevronRight, CalendarDays,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, formatDate, getCurrentMonth, getPrevMonth, getNextMonth, getMonthLabel, getDueDiff } from '../utils/formatters';
@@ -158,6 +158,13 @@ export default function Bills() {
             <span className="text-sm font-medium text-gray-900 dark:text-white w-24 sm:w-28 text-center capitalize truncate">
               {getMonthLabel(billsMonth)}
             </span>
+            {billsMonth !== getCurrentMonth() && (
+              <button onClick={() => setBillsMonth(getCurrentMonth())}
+                title="Voltar ao mês atual"
+                className="w-5 h-5 flex items-center justify-center rounded-lg text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors">
+                <CalendarDays className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button onClick={() => setBillsMonth(getNextMonth(billsMonth))}
               className="w-7 h-7 rounded-xl flex items-center justify-center
                          hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">

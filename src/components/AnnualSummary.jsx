@@ -1,7 +1,7 @@
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { TrendingUp, TrendingDown, BarChart3, Wallet, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, BarChart3, Wallet, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency, getTransactionMonth } from '../utils/formatters';
@@ -100,6 +100,15 @@ export default function AnnualSummary() {
             <ChevronLeft className="w-4 h-4 text-gray-500" />
           </button>
           <span className="text-sm font-semibold text-gray-900 dark:text-white w-12 text-center">{year}</span>
+          {year !== currentYear && (
+            <button
+              onClick={() => setYear(currentYear)}
+              title="Voltar ao ano atual"
+              className="w-5 h-5 flex items-center justify-center rounded-lg text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+            >
+              <CalendarDays className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             onClick={() => setYear(y => y + 1)}
             disabled={year >= currentYear}
